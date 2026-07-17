@@ -11,8 +11,21 @@
 <body class="flex items-center justify-center h-screen bg-gray-200">
   <div class="bg-white flex items-center flex-col p-8 rounded-lg shadow-md w-full max-w-xs">
     <h1 class="text-2xl font-bold mb-4 text-center">Welcome to Connectify</h1>
-    <a href="/chat" class="w-full text-center bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">Start
-      Chat</a>
+
+    <% if (username) { %>
+      <p class="text-sm text-gray-500 mb-4">Logged in as <%= username %></p>
+      <a href="/chat" class="w-full text-center bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">Start
+        Chat</a>
+      <form method="POST" action="/logout" class="w-full mt-2">
+        <button type="submit" class="w-full text-center bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">Log
+          Out</button>
+      </form>
+    <% } else { %>
+      <a href="/login" class="w-full text-center bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">Log
+        In</a>
+      <a href="/signup" class="w-full text-center bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300 mt-2">Sign
+        Up</a>
+    <% } %>
   </div>
 </body>
 
