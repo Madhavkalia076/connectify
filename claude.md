@@ -222,8 +222,19 @@ not suitable for a public demo link without your own always-on server.
 - A room-selection UI (list of rooms, or create-a-room form).
 - `socket.join(roomId)` on entering a room, message broadcasts scoped to `io.to(roomId).emit(...)`.
 - Update the `Message` schema/queries to filter by `roomId`.
+- **Room deletion, owner-only.** Only the user who created a room (`Room.createdBy`) can delete
+  it — this is an authorization check, not just an authentication check (authentication asks "who
+  are you," authorization asks "are you allowed to do *this specific thing*"). Deleting a room
+  should also clean up its messages (`Message.deleteMany({ roomId })`), otherwise they become
+  orphaned data nobody can ever see again but that still sits in the database forever. Explain the
+  difference between a soft delete (mark as deleted, keep the data) and a hard delete (actually
+  remove it) — a hard delete is fine here given the scope, but worth knowing the distinction and
+  why production systems often prefer soft deletes for anything a user might want "undo" on.
 
 **Learning checkpoint:** what would happen if you used `io.emit()` instead of `io.to(roomId).emit()`?
+Also: what's the difference between checking "is this user logged in" (authentication) and
+checking "is this user allowed to delete *this* room" (authorization) — where in the delete route
+does each check happen, and what happens if you only implement one of them?
 
 ---
 
@@ -338,6 +349,23 @@ existing Express backend, not a replacement of it:
   fit unchanged.
 - Purely a learning/portfolio-breadth exercise (demonstrates SPA skills alongside server-rendered
   skills) — do not start this while Phases 1–3 are incomplete, and do not treat it as required.
+
+---
+
+## Backlog — ideas to revisit later, not committed to yet
+
+Things raised in passing that are worth doing eventually but shouldn't derail whatever phase is
+currently in progress. Revisit this list once the numbered phases above are further along —
+explicitly flagged by the owner as "add this at the very end," not now.
+
+- **Display name, separate from login username.** Right now the `username` used to log in is also
+  the name everyone sees in chat. A "display name" set once at signup (or editable later) would
+  let people be known by a friendlier name in conversation while `username` stays the stable,
+  unique identifier used for login/auth. Small schema change (`User.displayName`, optional,
+  falling back to `username` if never set) and a small UI change (an extra field on signup, and
+  swap every place the chat currently shows `req.session.username` for a display name instead).
+  Explicitly deferred — only build this once the rest of the roadmap feels solid, and only if it
+  still seems worth it at that point.
 
 ---
 

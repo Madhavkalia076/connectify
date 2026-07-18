@@ -66,7 +66,7 @@
         .mic-muted {
             background-color: red !important;
         }
-        
+
         .camera-off {
             background-color: red !important;
         }
@@ -122,19 +122,31 @@
         <div id="incoming-call"
             class="fixed hidden z-[222] w-full h-dvh bg-gray-900 bg-opacity-75 flex items-center justify-center">
             <div class="bg-white p-8 rounded-md text-center">
-                <p class="mb-4">Incoming Call...</p>
+                <p class="mb-4" id="incoming-call-text">Incoming Call...</p>
                 <button id="accept-call" class="bg-green-500 text-white py-2 px-4 rounded-md">Accept</button>
                 <button id="reject-call" class="bg-red-500 text-white py-2 px-4 rounded-md ml-2">Reject</button>
             </div>
         </div>
         <main class="flex-1 p-4 overflow-y-auto relative" id="message-container">
-            <div
-                class="text-zinc-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2/3 text-center nobody">
-                bhagwaan kasam koi nahi hai yaha, ruko shaayad koi
-                aajaye.</div>
+            <% if (messages.length === 0) { %>
+                <div
+                    class="text-zinc-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2/3 text-center nobody">
+                    No messages yet — say hi!</div>
+            <% } %>
+            <% messages.forEach(function(msg) { %>
+                <div class="flex my-2 <%= msg.username === username ? 'justify-end' : 'justify-start' %>">
+                    <div class="max-w-xs">
+                        <% if (msg.username !== username) { %>
+                            <p class="text-xs text-gray-500 mb-1"><%= msg.username %></p>
+                        <% } %>
+                        <div class="<%= msg.username === username ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-800' %> p-3 rounded-lg">
+                            <p><%= msg.text %></p>
+                        </div>
+                    </div>
+                </div>
+            <% }) %>
         </main>
         <form id="chatform" class="bg-white p-4 flex">
-            <input type="hidden" id="userid" value="">
             <input type="text" id="messagebox"
                 class="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 placeholder="Type a message">
@@ -154,64 +166,68 @@
             const messagebox = document.querySelector("#messagebox");
             const messagecontainer = document.querySelector("#message-container");
 
-            let room;
+            // The room name and our own username are baked in server-side (from the URL and the
+            // session) — unlike the old random-pairing flow, there's no "waiting to be matched"
+            // step, we just join the room we're already viewing.
+            const room = "<%= room %>";
+            const myUsername = "<%= username %>";
 
-            socket.emit("joinroom");
+            socket.emit("joinroom", { roomId: room });
 
-            socket.on("joined", function (roomname) {
-                room = roomname;
-                document.querySelector(".nobody").classList.add("hidden");
-            })
-
-            socket.on("message", function (message) {
-                receiveMessage(message);
+            socket.on("message", function (data) {
+                renderMessage(data.username, data.text);
             })
 
             chatform.addEventListener("submit", function (event) {
                 event.preventDefault();
-                socket.emit("message", { room: room, message: messagebox.value });
-                attachMessage(messagebox.value);
+                const text = messagebox.value.trim();
+                if (!text) return;
+                socket.emit("message", { room: room, text: text });
                 messagebox.value = "";
+                // No local optimistic render here — the server broadcasts the message back to
+                // everyone in the room, sender included, once it's saved to the database. That
+                // keeps "what's on screen" and "what's actually persisted" from ever disagreeing.
             })
 
-            function attachMessage(message) {
-                const userMessageContainer = document.createElement('div');
-                userMessageContainer.classList.add('flex', 'my-2', 'justify-end');
+            function renderMessage(fromUsername, text) {
+                document.querySelector(".nobody")?.classList.add("hidden");
 
-                const userMessageDiv = document.createElement('div');
-                userMessageDiv.classList.add('bg-blue-500', 'text-white', 'p-3', 'rounded-lg', 'max-w-xs');
+                const isMine = fromUsername === myUsername;
 
-                const userMessageText = document.createElement('p');
-                userMessageText.textContent = message;
+                const row = document.createElement('div');
+                row.classList.add('flex', 'my-2', isMine ? 'justify-end' : 'justify-start');
 
-                userMessageDiv.appendChild(userMessageText);
+                const wrap = document.createElement('div');
+                wrap.classList.add('max-w-xs');
 
-                userMessageContainer.appendChild(userMessageDiv);
+                if (!isMine) {
+                    const label = document.createElement('p');
+                    label.classList.add('text-xs', 'text-gray-500', 'mb-1');
+                    label.textContent = fromUsername;
+                    wrap.appendChild(label);
+                }
 
-                document.getElementById('message-container').appendChild(userMessageContainer);
+                const bubble = document.createElement('div');
+                bubble.classList.add('p-3', 'rounded-lg', ...(isMine ? ['bg-blue-500', 'text-white'] : ['bg-gray-300', 'text-gray-800']));
 
-                document.querySelector("#message-container").scrollTop = document.querySelector("#message-container").scrollHeight;
+                const p = document.createElement('p');
+                p.textContent = text;
+                bubble.appendChild(p);
+                wrap.appendChild(bubble);
+                row.appendChild(wrap);
+
+                messagecontainer.appendChild(row);
+                messagecontainer.scrollTop = messagecontainer.scrollHeight;
             }
 
-            function receiveMessage(message) {
-                const messageContainer = document.createElement('div');
-                messageContainer.classList.add('flex', 'my-2', 'justify-start');
-
-                const messageDiv = document.createElement('div');
-                messageDiv.classList.add('bg-gray-300', 'text-gray-800', 'p-3', 'rounded-lg', 'max-w-xs');
-
-                const messageText = document.createElement('p');
-                messageText.textContent = message;
-
-                messageDiv.appendChild(messageText);
-
-                messageContainer.appendChild(messageDiv);
-
-                document.getElementById('message-container').appendChild(messageContainer);
-                document.querySelector("#message-container").scrollTop = document.querySelector("#message-container").scrollHeight;
-            }
+            // scroll to the bottom of the server-rendered history on first load
+            messagecontainer.scrollTop = messagecontainer.scrollHeight;
 
             // WEBRTC START
+            // Known limitation: this is still a 1-on-1 signaling flow (RTCPeerConnection only
+            // ever talks to one peer). In a room with more than 2 people, "Video Call" broadcasts
+            // to everyone in the room and whoever accepts first connects — true group video
+            // calling would need per-target signaling (or an SFU server) and isn't built here.
             let localStream;
             let remoteStream;
             let peerConnection;
@@ -341,8 +357,8 @@
                     socket.emit("startVideoCall", { room })
                 })
 
-            socket.on("incomingCall", function () {
-                console.log("hey");
+            socket.on("incomingCall", function ({ from }) {
+                document.querySelector("#incoming-call-text").textContent = `Incoming call from ${from}...`;
                 document.querySelector("#incoming-call").classList.remove("hidden");
             })
 
@@ -398,7 +414,7 @@
 
             }
         }
-    
+
         function toggleCamera() {
             if (localStream) {
                 localStream.getVideoTracks().forEach(track => {
@@ -426,7 +442,7 @@
         }
     }
 
-            
+
         </script>
 </body>
 

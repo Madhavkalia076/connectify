@@ -1,5 +1,8 @@
-<header class="bg-white shadow p-4 flex justify-between items-center">
-    <h1 class="text-xl font-bold">Chat <span class="text-sm font-normal text-gray-500">(<%= username %>)</span></h1>
+<header class="bg-white shadow p-4 flex justify-between items-center flex-wrap gap-2">
+    <div class="flex items-center gap-2">
+        <a href="/chat" class="text-sm text-indigo-600 hover:underline">&larr; Rooms</a>
+        <h1 class="text-xl font-bold">#<%= room %> <span class="text-sm font-normal text-gray-500">(<%= username %>)</span></h1>
+    </div>
     <div class="flex items-center gap-2">
         <button id="video-call-btn" class="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600">Video
             Call</button>
