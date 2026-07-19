@@ -127,6 +127,29 @@
                 <button id="reject-call" class="bg-red-500 text-white py-2 px-4 rounded-md ml-2">Reject</button>
             </div>
         </div>
+        <div id="presence-bar" class="bg-white border-b px-4 py-1 text-xs text-gray-500"></div>
+        <% if (isOwner && requiresApproval && pendingRequests.length > 0) { %>
+            <div class="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm">
+                <p class="font-semibold text-yellow-800 mb-1">Pending join requests</p>
+                <% pendingRequests.forEach(function(requester) { %>
+                    <div class="flex items-center justify-between gap-2 py-1">
+                        <span><%= requester %></span>
+                        <div class="flex gap-2">
+                            <form method="POST" action="/chat/<%= room %>/approve">
+                                <input type="hidden" name="username" value="<%= requester %>">
+                                <button type="submit"
+                                    class="bg-green-500 text-white text-xs py-1 px-2 rounded hover:bg-green-600">Approve</button>
+                            </form>
+                            <form method="POST" action="/chat/<%= room %>/reject">
+                                <input type="hidden" name="username" value="<%= requester %>">
+                                <button type="submit"
+                                    class="bg-red-500 text-white text-xs py-1 px-2 rounded hover:bg-red-600">Reject</button>
+                            </form>
+                        </div>
+                    </div>
+                <% }) %>
+            </div>
+        <% } %>
         <main class="flex-1 p-4 overflow-y-auto relative" id="message-container">
             <% if (messages.length === 0) { %>
                 <div
@@ -134,24 +157,44 @@
                     No messages yet — say hi!</div>
             <% } %>
             <% messages.forEach(function(msg) { %>
-                <div class="flex my-2 <%= msg.username === username ? 'justify-end' : 'justify-start' %>">
+                <div class="flex my-2 <%= msg.username === username ? 'justify-end' : 'justify-start' %>" data-id="<%= msg._id %>">
                     <div class="max-w-xs">
                         <% if (msg.username !== username) { %>
                             <p class="text-xs text-gray-500 mb-1"><%= msg.username %></p>
                         <% } %>
-                        <div class="<%= msg.username === username ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-800' %> p-3 rounded-lg">
-                            <p><%= msg.text %></p>
+                        <div class="message-body">
+                            <% if (msg.deletedForEveryone) { %>
+                                <div class="bg-gray-100 text-gray-400 italic p-3 rounded-lg text-sm">This message was deleted</div>
+                            <% } else { %>
+                                <% if (msg.type === 'image') { %>
+                                    <img src="<%= msg.fileUrl %>" class="rounded-lg max-w-full max-h-64" alt="shared image">
+                                <% } else { %>
+                                    <div class="<%= msg.username === username ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-800' %> p-3 rounded-lg">
+                                        <p><%= msg.text %></p>
+                                    </div>
+                                <% } %>
+                                <div class="flex gap-2 mt-1 <%= msg.username === username ? 'justify-end' : 'justify-start' %>">
+                                    <button class="delete-for-me text-[10px] text-gray-400 hover:underline" data-id="<%= msg._id %>">Delete for me</button>
+                                    <% if (msg.username === username) { %>
+                                        <button class="delete-for-everyone text-[10px] text-gray-400 hover:underline" data-id="<%= msg._id %>">Delete for everyone</button>
+                                    <% } %>
+                                </div>
+                            <% } %>
                         </div>
                     </div>
                 </div>
             <% }) %>
         </main>
-        <form id="chatform" class="bg-white p-4 flex">
+        <p id="typing-indicator" class="px-4 text-xs text-gray-400 italic h-4"></p>
+        <form id="chatform" class="bg-white p-4 flex items-center gap-2">
+            <label for="imageinput" class="cursor-pointer bg-gray-200 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-300"
+                title="Attach an image (JPEG/PNG/GIF/WEBP, max 5MB)">📎</label>
+            <input type="file" id="imageinput" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden">
             <input type="text" id="messagebox"
                 class="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 placeholder="Type a message">
             <button type="submit"
-                class="ml-2 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">Send</button>
+                class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">Send</button>
         </form>
         <video id="local-video" class="hidden" autoplay></video>
         <video id="remote-video" class="hidden" autoplay></video>
@@ -165,6 +208,8 @@
             const chatform = document.querySelector("#chatform");
             const messagebox = document.querySelector("#messagebox");
             const messagecontainer = document.querySelector("#message-container");
+            const presenceBar = document.querySelector("#presence-bar");
+            const typingIndicator = document.querySelector("#typing-indicator");
 
             // The room name and our own username are baked in server-side (from the URL and the
             // session) — unlike the old random-pairing flow, there's no "waiting to be matched"
@@ -175,7 +220,54 @@
             socket.emit("joinroom", { roomId: room });
 
             socket.on("message", function (data) {
-                renderMessage(data.username, data.text);
+                if (data.type === "image") {
+                    renderImageMessage(data.id, data.username, data.fileUrl);
+                } else {
+                    renderMessage(data.id, data.username, data.text);
+                }
+            })
+
+            // --- Message deletion ---
+            // Event delegation: the delete buttons live inside messages that get created both by
+            // the server (page load) and dynamically by these render functions (live messages), so
+            // one listener on the container catches clicks from either source instead of needing
+            // to re-attach a listener every time a new message is rendered.
+            messagecontainer.addEventListener("click", async function (event) {
+                const forMeBtn = event.target.closest(".delete-for-me");
+                const forEveryoneBtn = event.target.closest(".delete-for-everyone");
+
+                if (forMeBtn) {
+                    const id = forMeBtn.dataset.id;
+                    const response = await fetch(`/messages/${id}/delete-for-me`, { method: "POST" });
+                    if (response.ok) {
+                        // Only *my* view needs updating — nobody else is told, since this can never
+                        // affect what anyone else sees.
+                        document.querySelector(`[data-id="${id}"]`)?.remove();
+                    }
+                }
+
+                if (forEveryoneBtn) {
+                    if (!confirm("Delete this message for everyone? This cannot be undone.")) return;
+                    const id = forEveryoneBtn.dataset.id;
+                    const response = await fetch(`/messages/${id}/delete-for-everyone`, { method: "POST" });
+                    if (!response.ok) {
+                        const body = await response.json().catch(function () { return {}; });
+                        alert(body.error || "Couldn't delete this message.");
+                    }
+                    // No local update here — the server broadcasts "messageDeleted" back to the
+                    // whole room (sender included), and that's what actually swaps in the
+                    // placeholder. Same "wait for the server to confirm" pattern as sending a
+                    // message in the first place.
+                }
+            })
+
+            socket.on("messageDeleted", function ({ id }) {
+                const row = document.querySelector(`[data-id="${id}"]`);
+                if (!row) return;
+                // Only swaps out .message-body — leaves the sender's username label (a sibling
+                // element, not a child of this wrapper) untouched.
+                const body = row.querySelector(".message-body");
+                body.innerHTML = '<div class="bg-gray-100 text-gray-400 italic p-3 rounded-lg text-sm">This message was deleted</div>';
             })
 
             chatform.addEventListener("submit", function (event) {
@@ -189,13 +281,96 @@
                 // keeps "what's on screen" and "what's actually persisted" from ever disagreeing.
             })
 
-            function renderMessage(fromUsername, text) {
+            // --- Image upload ---
+            // Goes over a normal HTTP POST, not the socket connection — file uploads need
+            // multipart/form-data, which isn't something Socket.io sends. Once the server has
+            // saved it, it broadcasts a "message" event the same way text messages do, which is
+            // what actually makes the image appear for everyone (including the uploader).
+            const imageInput = document.querySelector("#imageinput");
+            imageInput.addEventListener("change", async function () {
+                const file = imageInput.files[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append("image", file);
+
+                const response = await fetch(`/chat/${room}/upload`, {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const body = await response.json().catch(function () { return {}; });
+                    alert(body.error || "Upload failed.");
+                }
+
+                imageInput.value = ""; // reset so selecting the same file again still fires "change"
+            })
+
+            // --- Presence ---
+            socket.on("presence", function (usernames) {
+                const others = usernames.filter(function (name) { return name !== myUsername; });
+                if (others.length === 0) {
+                    presenceBar.textContent = "Only you are here";
+                } else {
+                    presenceBar.textContent = "Online: " + usernames.join(", ");
+                }
+            })
+
+            // --- Typing indicator ---
+            // Debounced so a fast typist doesn't fire a socket event on every single keystroke —
+            // this only actually sends once per 500ms of continued typing, not once per keypress.
+            let typingDebounceTimer = null;
+            messagebox.addEventListener("input", function () {
+                if (typingDebounceTimer) return; // already have one queued, skip this keystroke
+                socket.emit("typing", { room: room });
+                typingDebounceTimer = setTimeout(function () {
+                    typingDebounceTimer = null;
+                }, 500);
+            })
+
+            let hideTypingTimer = null;
+            socket.on("typing", function ({ username: typingUsername }) {
+                typingIndicator.textContent = typingUsername + " is typing...";
+                // Every new "typing" event pushes the auto-hide back out — the indicator only
+                // disappears after ~2s with no further typing events from anyone.
+                clearTimeout(hideTypingTimer);
+                hideTypingTimer = setTimeout(function () {
+                    typingIndicator.textContent = "";
+                }, 2000);
+            })
+
+            // Shared by both render functions below — the delete-controls row is identical either
+            // way, only the bubble/image content above it differs.
+            function buildDeleteControls(id, isMine) {
+                const controls = document.createElement('div');
+                controls.classList.add('flex', 'gap-2', 'mt-1', isMine ? 'justify-end' : 'justify-start');
+
+                const deleteForMe = document.createElement('button');
+                deleteForMe.classList.add('delete-for-me', 'text-[10px]', 'text-gray-400', 'hover:underline');
+                deleteForMe.dataset.id = id;
+                deleteForMe.textContent = 'Delete for me';
+                controls.appendChild(deleteForMe);
+
+                if (isMine) {
+                    const deleteForEveryone = document.createElement('button');
+                    deleteForEveryone.classList.add('delete-for-everyone', 'text-[10px]', 'text-gray-400', 'hover:underline');
+                    deleteForEveryone.dataset.id = id;
+                    deleteForEveryone.textContent = 'Delete for everyone';
+                    controls.appendChild(deleteForEveryone);
+                }
+
+                return controls;
+            }
+
+            function renderMessage(id, fromUsername, text) {
                 document.querySelector(".nobody")?.classList.add("hidden");
 
                 const isMine = fromUsername === myUsername;
 
                 const row = document.createElement('div');
                 row.classList.add('flex', 'my-2', isMine ? 'justify-end' : 'justify-start');
+                row.dataset.id = id;
 
                 const wrap = document.createElement('div');
                 wrap.classList.add('max-w-xs');
@@ -207,13 +382,53 @@
                     wrap.appendChild(label);
                 }
 
+                const body = document.createElement('div');
+                body.classList.add('message-body');
+
                 const bubble = document.createElement('div');
                 bubble.classList.add('p-3', 'rounded-lg', ...(isMine ? ['bg-blue-500', 'text-white'] : ['bg-gray-300', 'text-gray-800']));
 
                 const p = document.createElement('p');
                 p.textContent = text;
                 bubble.appendChild(p);
-                wrap.appendChild(bubble);
+                body.appendChild(bubble);
+                body.appendChild(buildDeleteControls(id, isMine));
+                wrap.appendChild(body);
+                row.appendChild(wrap);
+
+                messagecontainer.appendChild(row);
+                messagecontainer.scrollTop = messagecontainer.scrollHeight;
+            }
+
+            function renderImageMessage(id, fromUsername, fileUrl) {
+                document.querySelector(".nobody")?.classList.add("hidden");
+
+                const isMine = fromUsername === myUsername;
+
+                const row = document.createElement('div');
+                row.classList.add('flex', 'my-2', isMine ? 'justify-end' : 'justify-start');
+                row.dataset.id = id;
+
+                const wrap = document.createElement('div');
+                wrap.classList.add('max-w-xs');
+
+                if (!isMine) {
+                    const label = document.createElement('p');
+                    label.classList.add('text-xs', 'text-gray-500', 'mb-1');
+                    label.textContent = fromUsername;
+                    wrap.appendChild(label);
+                }
+
+                const body = document.createElement('div');
+                body.classList.add('message-body');
+
+                const img = document.createElement('img');
+                img.src = fileUrl;
+                img.alt = 'shared image';
+                img.classList.add('rounded-lg', 'max-w-full', 'max-h-64');
+                body.appendChild(img);
+                body.appendChild(buildDeleteControls(id, isMine));
+                wrap.appendChild(body);
                 row.appendChild(wrap);
 
                 messagecontainer.appendChild(row);

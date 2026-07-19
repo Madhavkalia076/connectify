@@ -236,6 +236,36 @@ Also: what's the difference between checking "is this user logged in" (authentic
 checking "is this user allowed to delete *this* room" (authorization) — where in the delete route
 does each check happen, and what happens if you only implement one of them?
 
+**Join approval (owner's choice per room).** Raised by the owner as a real feature, not deferred —
+built alongside the rest of room/channel work. The room creator chooses "open" vs
+"approval-required" at creation time (a checkbox), closer to Slack's public/private channel model
+than a single global rule. `Room` gained `requiresApproval`, `members`, and `pendingRequests`
+fields; open rooms (including the auto-seeded `general`) ignore all of it and behave exactly as
+before. For approval-required rooms: a non-member sees a "Request to Join" screen, a pending
+requester sees a "waiting for approval" screen, and the owner sees an approve/reject panel inline
+on the room's chat page. Enforced in two places — the `GET /chat/:roomId` route (so the chat UI
+itself is never reachable without membership) and the Socket.io `joinroom` handler (so a raw socket
+connection can't bypass the page-level check) — same defense-in-depth reasoning as the auth check.
+
+**Leave room.** Only meaningful for approval-required rooms, since open rooms never track
+membership in the first place — there's nothing persistent to leave. A non-owner member can leave
+via a button in the header, which removes them from `Room.members`; they'd need to request access
+again (and be re-approved) to rejoin. The owner cannot leave their own room through this route —
+ownership and membership are tied together here, and "the owner leaves" raises a question (who
+owns it now?) this feature deliberately doesn't try to answer; deleting the room is the owner's
+equivalent action instead.
+
+**Message deletion (for me / for everyone).** WhatsApp-style, raised by the owner as a real
+feature. `Message` gained `deletedForEveryone` (Boolean) and `deletedFor` (array of usernames who
+hid it for themselves). "Delete for everyone" is sender-only (same authorization pattern as room
+deletion/approval) and is a soft delete — the row stays in the database, marked, and rendered as
+"This message was deleted" for everyone from then on; broadcast live over Socket.io so it updates
+instantly for anyone already viewing the room, not just on next reload. "Delete for me" has no
+authorization check beyond being logged in (anyone can hide any message from their own view only)
+and is purely local — no broadcast, since it can never affect what anyone else sees. Message
+history fetches now carry the message's own `_id` through to the client (in both the server-render
+and the live Socket.io broadcast) so the UI has something stable to target for later deletion.
+
 ---
 
 ### 4. Typing indicators + presence

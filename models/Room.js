@@ -11,6 +11,20 @@ const roomSchema = new mongoose.Schema({
     type: String, // username of whoever created it — plain string, not a User reference,
                    // since we don't need to query "all rooms by this user" anywhere yet
   },
+  requiresApproval: {
+    type: Boolean,
+    default: false, // an "open" room — anyone logged in can join immediately, no gating
+  },
+  // Only meaningfully enforced when requiresApproval is true. Open rooms don't bother maintaining
+  // this — every visit would otherwise be an extra database write for no functional benefit.
+  members: {
+    type: [String],
+    default: [],
+  },
+  pendingRequests: {
+    type: [String],
+    default: [],
+  },
   createdAt: {
     type: Date,
     default: Date.now,

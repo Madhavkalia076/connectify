@@ -24,7 +24,7 @@
       <% rooms.forEach(function(room) { %>
         <a href="/chat/<%= room.name %>"
           class="border border-gray-300 rounded-md px-3 py-2 hover:bg-gray-50 flex justify-between items-center">
-          <span>#<%= room.name %></span>
+          <span><%= room.requiresApproval ? '🔒' : '' %> #<%= room.name %></span>
           <span class="text-xs text-gray-400">created by <%= room.createdBy %></span>
         </a>
       <% }) %>
@@ -34,6 +34,10 @@
       <label class="text-sm text-gray-600">Create a new room</label>
       <input type="text" name="name" placeholder="room-name" required maxlength="30"
         class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+      <label class="text-sm text-gray-600 flex items-center gap-2">
+        <input type="checkbox" name="requiresApproval">
+        Require my approval to join
+      </label>
       <button type="submit"
         class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">Create & Join</button>
     </form>
