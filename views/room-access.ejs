@@ -2,31 +2,53 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>#<%= room %> — Connectify</title>
-  <link href="/css/style.css" rel="stylesheet">
+  <%- include('partials/head', { title: '#' + room + ' — Connectify' }) %>
 </head>
 
-<body class="flex items-center justify-center h-screen bg-gray-200">
-  <div class="bg-white flex items-center flex-col p-8 rounded-lg shadow-md w-full max-w-xs text-center">
-    <h1 class="text-xl font-bold mb-2">#<%= room %></h1>
+<body class="h-dvh overflow-hidden bg-slate-100 dark:bg-slate-900 font-sans text-gray-900 dark:text-gray-100 flex">
 
-    <% if (isPending) { %>
-      <p class="text-gray-500 mb-4">Your request to join has been sent. Waiting for the room owner
-        to approve it.</p>
-      <a href="/chat/<%= room %>" class="text-sm text-indigo-600 hover:underline">Check again</a>
-    <% } else { %>
-      <p class="text-gray-500 mb-4">This room requires the owner's approval to join.</p>
-      <form method="POST" action="/chat/<%= room %>/request" class="w-full">
-        <button type="submit"
-          class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">Request to
-          Join</button>
-      </form>
-    <% } %>
+  <%- include('partials/sidebar', { rooms, username, activeRoom, roomError: null }) %>
 
-    <a href="/chat" class="text-sm text-gray-500 mt-4 hover:underline">&larr; Back to rooms</a>
+  <div class="flex-1 flex flex-col min-w-0">
+    <div class="md:hidden flex items-center gap-2 px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+      <button id="sidebar-open" class="p-1 text-gray-500 dark:text-gray-400">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+        </svg>
+      </button>
+      <span class="font-semibold">#<%= room %></span>
+    </div>
+
+    <div class="flex-1 flex flex-col items-center justify-center text-center px-6">
+      <div class="w-14 h-14 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center mb-4">
+        <svg class="w-7 h-7 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+        </svg>
+      </div>
+      <h1 class="text-lg font-semibold">#<%= room %></h1>
+
+      <% if (isPending) { %>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xs">
+          Your request to join has been sent. Waiting for the room owner to approve it.
+        </p>
+        <a href="/chat/<%= room %>"
+          class="mt-4 text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:underline">
+          Check again
+        </a>
+      <% } else { %>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xs">
+          This room requires the owner's approval to join.
+        </p>
+        <form method="POST" action="/chat/<%= room %>/request" class="mt-4">
+          <button type="submit"
+            class="bg-indigo-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm">
+            Request to Join
+          </button>
+        </form>
+      <% } %>
+    </div>
   </div>
+
 </body>
 
 </html>

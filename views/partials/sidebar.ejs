@@ -1,0 +1,174 @@
+<!-- Mobile-only backdrop, shown behind the sidebar when it's slid open as a drawer -->
+<div id="sidebar-backdrop" class="hidden fixed inset-0 bg-black/50 z-30 md:hidden"></div>
+
+<aside id="sidebar"
+    class="fixed md:static inset-y-0 left-0 z-40 w-72 shrink-0 -translate-x-full md:translate-x-0 transition-transform duration-200 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 flex flex-col h-dvh">
+
+    <div class="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-slate-700">
+        <a href="/chat" class="flex items-center gap-2 min-w-0">
+            <svg class="w-6 h-6 text-indigo-600 dark:text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+            </svg>
+            <span class="font-semibold truncate">Connectify</span>
+        </a>
+        <button id="sidebar-close" class="md:hidden p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+
+    <div class="px-3 pt-3 flex flex-col gap-2">
+        <button id="create-room-btn"
+            class="w-full flex items-center justify-center gap-1.5 bg-indigo-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Create Room
+        </button>
+        <div class="relative">
+            <svg class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            <input id="room-search" type="text" placeholder="Find a room"
+                class="w-full border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+    </div>
+
+    <nav id="room-list" class="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-0.5">
+        <% if (rooms.length === 0) { %>
+            <p class="text-xs text-gray-400 dark:text-gray-500 text-center mt-4">No rooms yet</p>
+        <% } %>
+        <% rooms.forEach(function(room) { %>
+            <a href="/chat/<%= room.name %>" data-room-name="<%= room.name.toLowerCase() %>"
+                class="room-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm truncate transition-colors <%= (typeof activeRoom !== 'undefined' && activeRoom === room.name) ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700' %>">
+                <% if (room.imageUrl) { %>
+                    <img src="<%= room.imageUrl %>" alt="" class="w-6 h-6 rounded-full object-cover shrink-0">
+                <% } else { %>
+                    <span class="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-700 shrink-0 flex items-center justify-center text-gray-400 text-xs font-semibold">
+                        <%= room.name.slice(0, 1).toUpperCase() %>
+                    </span>
+                <% } %>
+                <span class="truncate flex-1"><%= room.name %></span>
+                <% if (room.requiresApproval) { %>
+                    <svg class="w-3.5 h-3.5 shrink-0 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                    </svg>
+                <% } %>
+            </a>
+        <% }) %>
+        <p id="room-search-empty" class="hidden text-xs text-gray-400 dark:text-gray-500 text-center mt-4">No rooms match "<span id="room-search-empty-query"></span>"</p>
+    </nav>
+
+    <div class="border-t border-gray-200 dark:border-slate-700 px-3 py-3 flex items-center gap-2">
+        <div class="w-8 h-8 rounded-full bg-indigo-600 text-white text-xs font-semibold flex items-center justify-center shrink-0">
+            <%= username.slice(0, 2).toUpperCase() %>
+        </div>
+        <span class="text-sm font-medium truncate flex-1"><%= username %></span>
+        <%- include('theme-toggle') %>
+        <form method="POST" action="/logout">
+            <button type="submit" title="Log out" class="p-2 rounded-md text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-slate-700 transition-colors">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H3" />
+                </svg>
+            </button>
+        </form>
+    </div>
+</aside>
+
+<!-- Create-room modal — plain CSS/JS toggle, no library needed -->
+<div id="create-room-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold text-lg">Create a room</h2>
+            <button id="create-room-cancel" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <% if (typeof roomError !== 'undefined' && roomError) { %>
+            <p class="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg px-3 py-2 mb-4">
+                <%= roomError %>
+            </p>
+        <% } %>
+        <form method="POST" action="/chat/rooms" class="flex flex-col gap-3">
+            <div>
+                <label for="room-name-input" class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Room name</label>
+                <input type="text" id="room-name-input" name="name" placeholder="room-name" required maxlength="30"
+                    class="w-full border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
+                <input type="checkbox" name="requiresApproval" class="rounded">
+                Require my approval to join
+            </label>
+            <button type="submit"
+                class="mt-1 bg-indigo-600 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-indigo-700 transition-colors">
+                Create &amp; Join
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        const openBtn = document.getElementById('sidebar-open');
+        const closeBtn = document.getElementById('sidebar-close');
+
+        function openSidebar() {
+            sidebar.classList.remove('-translate-x-full');
+            backdrop.classList.remove('hidden');
+        }
+        function closeSidebar() {
+            sidebar.classList.add('-translate-x-full');
+            backdrop.classList.add('hidden');
+        }
+        openBtn?.addEventListener('click', openSidebar);
+        closeBtn?.addEventListener('click', closeSidebar);
+        backdrop.addEventListener('click', closeSidebar);
+
+        // Room search — purely client-side, filtering the already-rendered room links. The full
+        // room list is small enough (this isn't a Discord-scale server directory) that a server
+        // round-trip for search would just add latency for no real benefit.
+        const searchInput = document.getElementById('room-search');
+        const roomRows = document.querySelectorAll('.room-row');
+        const emptyState = document.getElementById('room-search-empty');
+        const emptyStateQuery = document.getElementById('room-search-empty-query');
+        searchInput?.addEventListener('input', function () {
+            const query = searchInput.value.trim().toLowerCase();
+            let anyVisible = false;
+            roomRows.forEach(function (row) {
+                const matches = row.dataset.roomName.includes(query);
+                row.classList.toggle('hidden', !matches);
+                if (matches) anyVisible = true;
+            });
+            emptyState.classList.toggle('hidden', anyVisible || query === '');
+            emptyStateQuery.textContent = query;
+        });
+
+        const modal = document.getElementById('create-room-modal');
+        const createBtn = document.getElementById('create-room-btn');
+        const cancelBtn = document.getElementById('create-room-cancel');
+
+        function openModal() {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+        function closeModal() {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+        createBtn.addEventListener('click', openModal);
+        cancelBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) closeModal();
+        });
+
+        <% if (typeof roomError !== 'undefined' && roomError) { %>
+        openModal();
+        <% } %>
+    })();
+</script>

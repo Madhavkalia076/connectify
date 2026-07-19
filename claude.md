@@ -322,6 +322,36 @@ substitute for finishing them.
   Tailwind's own docs lean towards accepting repetition for simple cases, only reaching for
   `@apply` when a pattern repeats often enough to be worth naming.
 
+**What was actually built (going further than the original scope above, on the owner's explicit
+request — "WhatsApp and Discord are the competition"):**
+
+- **Dark + light theme, with a manual toggle.** `tailwind.config.js` uses the `"class"` dark-mode
+  strategy (not the OS-only `prefers-color-scheme` media query), so a sun/moon button can switch
+  it. A blocking inline script in `partials/head.ejs` applies the saved theme (or falls back to the
+  OS preference) *before* the page paints, avoiding a flash of the wrong theme on load.
+- **Persistent sidebar layout**, replacing the old separate room-list page. `partials/sidebar.ejs`
+  is included on `/chat`, `/chat/:roomId`, and the room-access ("request to join") page, so the
+  room list, search, and user controls are always visible — closer to Discord/WhatsApp's actual
+  feel. No SPA framework needed: it's a shared EJS partial included at the top of each page's body.
+- **Room search** — client-side filtering of the already-rendered sidebar room list, no server
+  round-trip (the room list is small; a search API would be solving a problem that doesn't exist
+  yet).
+- **Room Info panel**: room image (owner can click to change, reusing the same `multer` upload
+  pattern from message images), an editable description (owner-only), and a participants list.
+  Participants mean different things depending on room type — approval-required rooms show the
+  full member list with a live online/offline dot; open rooms (no tracked membership) show only
+  who's currently connected, since that's the only honest answer available for them.
+- **Pending join requests moved out of the chat view** into a bell icon (badge shows the count)
+  that opens a modal — keeps the chat itself uncluttered, per the owner's explicit preference over
+  the original inline banner.
+- **Still in progress, picking up next**: live unread-message badges on room names in the sidebar
+  (WhatsApp-style) — the one piece of this pass with real architectural weight, since "live" means
+  the client needs to listen for new messages across *every* room the user belongs to
+  simultaneously (not just whichever one is currently open), which means one shared Socket.io
+  connection app-wide instead of a fresh one per page.
+- **Logged for a later phase, not started**: 1:1 direct messages by username (Instagram-style) —
+  explicitly deferred by the owner until after the room-level features above are done.
+
 ---
 
 ## Phase 2 — Seniority signals

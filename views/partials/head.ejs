@@ -1,0 +1,19 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><%= title %></title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="/css/style.css" rel="stylesheet">
+<script>
+  // Must run synchronously, before the body paints — reads the saved theme (falling back to the
+  // OS-level preference if the user never toggled it) and applies the `dark` class to <html>
+  // immediately. Without this running blocking and early, the page would render in light mode
+  // for a split second before JS could switch it, on every single load.
+  (function () {
+    var saved = localStorage.getItem('theme');
+    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var isDark = saved ? saved === 'dark' : prefersDark;
+    if (isDark) document.documentElement.classList.add('dark');
+  })();
+</script>

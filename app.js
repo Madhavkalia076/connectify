@@ -110,6 +110,13 @@ function broadcastPresence(roomId) {
   io.to(roomId).emit("presence", usernames);
 }
 
+// Lets HTTP routes (chatroute.js's participants list) read live presence data without needing
+// their own reference to the roomPresence Map, which only exists in this module's scope.
+app.set('getOnlineUsers', function (roomId) {
+  const usersInRoom = roomPresence.get(roomId);
+  return usersInRoom ? Array.from(usersInRoom.keys()) : [];
+});
+
 io.on("connection",function(socket){
   // socket.request went through sessionMiddleware above (via io.engine.use), so it carries the
   // same req.session an HTTP request would have. No session username = never logged in = kick them.

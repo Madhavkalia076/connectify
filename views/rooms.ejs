@@ -2,51 +2,36 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rooms — Connectify</title>
-  <link href="/css/style.css" rel="stylesheet">
+  <%- include('partials/head', { title: 'Rooms — Connectify' }) %>
 </head>
 
-<body class="flex flex-col items-center min-h-screen bg-gray-200 p-4">
-  <div class="bg-white flex items-center flex-col p-8 rounded-lg shadow-md w-full max-w-sm mt-8">
-    <h1 class="text-2xl font-bold mb-1 text-center">Rooms</h1>
-    <p class="text-sm text-gray-500 mb-4">Logged in as <%= username %></p>
+<body class="h-dvh overflow-hidden bg-slate-100 dark:bg-slate-900 font-sans text-gray-900 dark:text-gray-100 flex">
 
-    <% if (error) { %>
-      <p class="text-red-600 text-sm mb-4"><%= error %></p>
-    <% } %>
+  <%- include('partials/sidebar', { rooms, username, activeRoom: null, roomError }) %>
 
-    <div class="w-full flex flex-col gap-2 mb-6">
-      <% if (rooms.length === 0) { %>
-        <p class="text-zinc-400 text-sm text-center">No rooms yet — create the first one below.</p>
-      <% } %>
-      <% rooms.forEach(function(room) { %>
-        <a href="/chat/<%= room.name %>"
-          class="border border-gray-300 rounded-md px-3 py-2 hover:bg-gray-50 flex justify-between items-center">
-          <span><%= room.requiresApproval ? '🔒' : '' %> #<%= room.name %></span>
-          <span class="text-xs text-gray-400">created by <%= room.createdBy %></span>
-        </a>
-      <% }) %>
+  <div class="flex-1 flex flex-col min-w-0">
+    <div class="md:hidden flex items-center gap-2 px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+      <button id="sidebar-open" class="p-1 text-gray-500 dark:text-gray-400">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+        </svg>
+      </button>
+      <span class="font-semibold">Connectify</span>
     </div>
 
-    <form method="POST" action="/chat/rooms" class="w-full flex flex-col gap-3 border-t pt-4">
-      <label class="text-sm text-gray-600">Create a new room</label>
-      <input type="text" name="name" placeholder="room-name" required maxlength="30"
-        class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-      <label class="text-sm text-gray-600 flex items-center gap-2">
-        <input type="checkbox" name="requiresApproval">
-        Require my approval to join
-      </label>
-      <button type="submit"
-        class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">Create & Join</button>
-    </form>
-
-    <form method="POST" action="/logout" class="w-full mt-4">
-      <button type="submit" class="w-full text-center bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">Log
-        Out</button>
-    </form>
+    <div class="flex-1 flex flex-col items-center justify-center text-center px-6">
+      <div class="w-16 h-16 rounded-full bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center mb-4">
+        <svg class="w-8 h-8 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+        </svg>
+      </div>
+      <h1 class="text-lg font-semibold">Pick a room to start chatting</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xs">
+        Choose one from the sidebar, or create a new one to get going.
+      </p>
+    </div>
   </div>
+
 </body>
 
 </html>

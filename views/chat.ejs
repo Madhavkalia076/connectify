@@ -2,25 +2,20 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat</title>
+    <%- include('partials/head', { title: '#' + room + ' — Connectify' }) %>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        /* Kept as scoped CSS rather than Tailwind utilities — the video call UI relies on
+           JS-toggled state classes (.smallFrame, .mic-muted, .camera-off) layered on top of
+           fixed positioning that's easier to reason about here than composed inline. */
         #videos {
             display: grid;
             grid-template-columns: 1fr;
-            height: 100vh;
+            height: 100dvh;
             overflow: hidden;
         }
 
         .video-player {
-            background-color: black;
+            background-color: #0f172a;
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -31,64 +26,84 @@
             bottom: 100px;
             right: 20px;
             height: 170px;
-            width: 300px;
-            border-radius: 6px;
+            width: 260px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
             z-index: 10;
         }
 
         #controls {
             position: fixed;
-            bottom: 20px;
+            bottom: 24px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 1em;
+            gap: 1rem;
+            z-index: 20;
         }
 
         .control-container {
-            background-color: #6df966;
-            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(8px);
+            padding: 16px;
             border-radius: 50%;
             display: flex;
             justify-content: center;
             align-items: center;
             cursor: pointer;
+            transition: background-color 150ms;
+        }
+
+        .control-container:hover {
+            background-color: rgba(255, 255, 255, 0.25);
         }
 
         .control-container svg {
-            height: 30px;
-            width: 30px;
+            height: 22px;
+            width: 22px;
         }
 
-        #leave-btn {
-            background-color: rgb(255, 80, 80, 1);
-        }
-        .mic-muted {
-            background-color: red !important;
+        #hangup {
+            background-color: #ef4444;
         }
 
+        #hangup:hover {
+            background-color: #dc2626;
+        }
+
+        .mic-muted,
         .camera-off {
-            background-color: red !important;
+            background-color: #ef4444 !important;
         }
 
         @media screen and (max-width: 600px) {
             .smallFrame {
-                height: 80px;
-                width: 120px;
+                height: 90px;
+                width: 130px;
+                bottom: 90px;
+                right: 12px;
             }
 
-            .control-container img {
-                height: 20px;
-                width: 20px;
+            #controls {
+                bottom: 16px;
+                gap: 0.75rem;
+            }
+
+            .control-container {
+                padding: 12px;
             }
         }
     </style>
-    <link href="/css/style.css" rel="stylesheet">
 </head>
 
-<body class="flex flex-col h-dvh bg-gray-200">
-    <%- include('partials/header') %>
-        <div class="fixed videoblock hidden z-[222] w-full h-svh">
+<body class="h-dvh overflow-hidden bg-slate-100 dark:bg-slate-900 font-sans text-gray-900 dark:text-gray-100 flex">
+
+    <%- include('partials/sidebar', { rooms, username, activeRoom, roomError: null }) %>
+
+    <div class="flex-1 flex flex-col min-w-0">
+
+        <!-- Video call overlay -->
+        <div class="fixed videoblock hidden z-[222] w-full h-dvh">
             <div id="videos">
                 <video class="video-player" id="localVideo" autoplay muted playsinline></video>
                 <video class="video-player" id="remoteVideo" autoplay playsinline></video>
@@ -104,8 +119,8 @@
 
                 <div class="control-container" id="hangup">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                        <path d="M0 0h24v24H0z" fill="red" />
-                        <path
+                        <path d="M0 0h24v24H0z" fill="none" />
+                        <path fill="white"
                             d="M20 15.5c-.78 0-1.55-.3-2.12-.88l-1.43-1.42a4.007 4.007 0 0 0-5.54 0l-1.43 1.42A2.983 2.983 0 0 1 4 15.5c-.78 0-1.55-.3-2.12-.88A2.983 2.983 0 0 1 1 12.5a2.983 2.983 0 0 1 .88-2.12l7-7a4.007 4.007 0 0 1 5.54 0l7 7c.58.58.88 1.34.88 2.12s-.3 1.55-.88 2.12c-.58.58-1.34.88-2.12.88z" />
                     </svg>
                 </div>
@@ -119,64 +134,111 @@
                 </div>
             </div>
         </div>
+
+        <!-- Incoming call modal -->
         <div id="incoming-call"
-            class="fixed hidden z-[222] w-full h-dvh bg-gray-900 bg-opacity-75 flex items-center justify-center">
-            <div class="bg-white p-8 rounded-md text-center">
-                <p class="mb-4" id="incoming-call-text">Incoming Call...</p>
-                <button id="accept-call" class="bg-green-500 text-white py-2 px-4 rounded-md">Accept</button>
-                <button id="reject-call" class="bg-red-500 text-white py-2 px-4 rounded-md ml-2">Reject</button>
+            class="fixed hidden z-[222] w-full h-dvh bg-black/60 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-xl text-center">
+                <p class="mb-4 font-medium" id="incoming-call-text">Incoming Call...</p>
+                <div class="flex gap-3 justify-center">
+                    <button id="accept-call" class="bg-green-500 text-white py-2 px-5 rounded-lg font-medium hover:bg-green-600 transition-colors">Accept</button>
+                    <button id="reject-call" class="bg-red-500 text-white py-2 px-5 rounded-lg font-medium hover:bg-red-600 transition-colors">Reject</button>
+                </div>
             </div>
         </div>
-        <div id="presence-bar" class="bg-white border-b px-4 py-1 text-xs text-gray-500"></div>
-        <% if (isOwner && requiresApproval && pendingRequests.length > 0) { %>
-            <div class="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm">
-                <p class="font-semibold text-yellow-800 mb-1">Pending join requests</p>
-                <% pendingRequests.forEach(function(requester) { %>
-                    <div class="flex items-center justify-between gap-2 py-1">
-                        <span><%= requester %></span>
-                        <div class="flex gap-2">
-                            <form method="POST" action="/chat/<%= room %>/approve">
-                                <input type="hidden" name="username" value="<%= requester %>">
-                                <button type="submit"
-                                    class="bg-green-500 text-white text-xs py-1 px-2 rounded hover:bg-green-600">Approve</button>
-                            </form>
-                            <form method="POST" action="/chat/<%= room %>/reject">
-                                <input type="hidden" name="username" value="<%= requester %>">
-                                <button type="submit"
-                                    class="bg-red-500 text-white text-xs py-1 px-2 rounded hover:bg-red-600">Reject</button>
-                            </form>
-                        </div>
-                    </div>
-                <% }) %>
+
+        <!-- Toolbar -->
+        <header class="flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+            <div class="flex items-center gap-2 min-w-0">
+                <button id="sidebar-open" class="md:hidden p-1 text-gray-500 dark:text-gray-400 shrink-0">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+                    </svg>
+                </button>
+                <div class="w-9 h-9 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 font-semibold">
+                    #
+                </div>
+                <h1 class="font-semibold truncate"><%= room %></h1>
             </div>
-        <% } %>
+            <div class="flex items-center gap-2 shrink-0">
+                <button id="video-call-btn" title="Start a video call"
+                    class="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/25 transition-colors">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2Z" />
+                    </svg>
+                </button>
+                <button id="room-info-btn" title="Room info"
+                    class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                    </svg>
+                </button>
+                <% if (isOwner && requiresApproval) { %>
+                    <button id="pending-requests-btn" title="Pending join requests"
+                        class="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+                        </svg>
+                        <% if (pendingRequests.length > 0) { %>
+                            <span class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] leading-none rounded-full w-4 h-4 flex items-center justify-center">
+                                <%= pendingRequests.length %>
+                            </span>
+                        <% } %>
+                    </button>
+                <% } %>
+                <% if (isOwner) { %>
+                    <form method="POST" action="/chat/<%= room %>/delete"
+                        onsubmit="return confirm('Delete #<%= room %> and all its messages? This cannot be undone.');">
+                        <button type="submit" title="Delete room"
+                            class="p-2 rounded-lg bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/25 transition-colors">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                            </svg>
+                        </button>
+                    </form>
+                <% } else if (requiresApproval) { %>
+                    <form method="POST" action="/chat/<%= room %>/leave"
+                        onsubmit="return confirm('Leave #<%= room %>? You\'ll need the owner\'s approval again to rejoin.');">
+                        <button type="submit" title="Leave room"
+                            class="p-2 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H3" />
+                            </svg>
+                        </button>
+                    </form>
+                <% } %>
+            </div>
+        </header>
+
+        <div id="presence-bar" class="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 py-1 text-xs text-gray-500 dark:text-gray-400"></div>
+
         <main class="flex-1 p-4 overflow-y-auto relative" id="message-container">
             <% if (messages.length === 0) { %>
                 <div
-                    class="text-zinc-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2/3 text-center nobody">
+                    class="text-gray-400 dark:text-gray-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2/3 text-center nobody">
                     No messages yet — say hi!</div>
             <% } %>
             <% messages.forEach(function(msg) { %>
                 <div class="flex my-2 <%= msg.username === username ? 'justify-end' : 'justify-start' %>" data-id="<%= msg._id %>">
                     <div class="max-w-xs">
                         <% if (msg.username !== username) { %>
-                            <p class="text-xs text-gray-500 mb-1"><%= msg.username %></p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1"><%= msg.username %></p>
                         <% } %>
                         <div class="message-body">
                             <% if (msg.deletedForEveryone) { %>
-                                <div class="bg-gray-100 text-gray-400 italic p-3 rounded-lg text-sm">This message was deleted</div>
+                                <div class="bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-gray-500 italic p-3 rounded-2xl text-sm">This message was deleted</div>
                             <% } else { %>
                                 <% if (msg.type === 'image') { %>
-                                    <img src="<%= msg.fileUrl %>" class="rounded-lg max-w-full max-h-64" alt="shared image">
+                                    <img src="<%= msg.fileUrl %>" class="rounded-2xl max-w-full max-h-64" alt="shared image">
                                 <% } else { %>
-                                    <div class="<%= msg.username === username ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-800' %> p-3 rounded-lg">
-                                        <p><%= msg.text %></p>
+                                    <div class="<%= msg.username === username ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-slate-600' %> p-3 rounded-2xl">
+                                        <p class="text-sm"><%= msg.text %></p>
                                     </div>
                                 <% } %>
                                 <div class="flex gap-2 mt-1 <%= msg.username === username ? 'justify-end' : 'justify-start' %>">
-                                    <button class="delete-for-me text-[10px] text-gray-400 hover:underline" data-id="<%= msg._id %>">Delete for me</button>
+                                    <button class="delete-for-me text-[10px] text-gray-400 dark:text-gray-500 hover:underline" data-id="<%= msg._id %>">Delete for me</button>
                                     <% if (msg.username === username) { %>
-                                        <button class="delete-for-everyone text-[10px] text-gray-400 hover:underline" data-id="<%= msg._id %>">Delete for everyone</button>
+                                        <button class="delete-for-everyone text-[10px] text-gray-400 dark:text-gray-500 hover:underline" data-id="<%= msg._id %>">Delete for everyone</button>
                                     <% } %>
                                 </div>
                             <% } %>
@@ -185,434 +247,452 @@
                 </div>
             <% }) %>
         </main>
-        <p id="typing-indicator" class="px-4 text-xs text-gray-400 italic h-4"></p>
-        <form id="chatform" class="bg-white p-4 flex items-center gap-2">
-            <label for="imageinput" class="cursor-pointer bg-gray-200 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-300"
-                title="Attach an image (JPEG/PNG/GIF/WEBP, max 5MB)">📎</label>
+
+        <p id="typing-indicator" class="px-4 text-xs text-gray-400 dark:text-gray-500 italic h-4"></p>
+
+        <form id="chatform" class="bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 p-3 flex items-center gap-2">
+            <label for="imageinput" title="Attach an image (JPEG/PNG/GIF/WEBP, max 5MB)"
+                class="cursor-pointer p-2.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors shrink-0">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                </svg>
+            </label>
             <input type="file" id="imageinput" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden">
             <input type="text" id="messagebox"
-                class="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Type a message">
-            <button type="submit"
-                class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">Send</button>
+                class="flex-1 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Type a message" autocomplete="off">
+            <button type="submit" title="Send"
+                class="p-2.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shrink-0">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.126A59.768 59.768 0 0 1 21.485 12 59.77 59.77 0 0 1 3.27 20.876L5.999 12Zm0 0h7.5" />
+                </svg>
+            </button>
         </form>
+
         <video id="local-video" class="hidden" autoplay></video>
         <video id="remote-video" class="hidden" autoplay></video>
 
-        <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
-            integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
-            crossorigin="anonymous"></script>
+        <%- include('partials/room-info-modal', { room, isOwner, imageUrl, description, participants, requiresApproval, roomOwner }) %>
+        <% if (isOwner && requiresApproval) { %>
+            <%- include('partials/pending-requests-modal', { room, pendingRequests }) %>
+        <% } %>
+    </div>
 
-        <script>
-            const socket = io();
-            const chatform = document.querySelector("#chatform");
-            const messagebox = document.querySelector("#messagebox");
-            const messagecontainer = document.querySelector("#message-container");
-            const presenceBar = document.querySelector("#presence-bar");
-            const typingIndicator = document.querySelector("#typing-indicator");
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
+        integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
+        crossorigin="anonymous"></script>
 
-            // The room name and our own username are baked in server-side (from the URL and the
-            // session) — unlike the old random-pairing flow, there's no "waiting to be matched"
-            // step, we just join the room we're already viewing.
-            const room = "<%= room %>";
-            const myUsername = "<%= username %>";
+    <script>
+        const socket = io();
+        const chatform = document.querySelector("#chatform");
+        const messagebox = document.querySelector("#messagebox");
+        const messagecontainer = document.querySelector("#message-container");
+        const presenceBar = document.querySelector("#presence-bar");
+        const typingIndicator = document.querySelector("#typing-indicator");
 
-            socket.emit("joinroom", { roomId: room });
+        // The room name and our own username are baked in server-side (from the URL and the
+        // session) — unlike the old random-pairing flow, there's no "waiting to be matched"
+        // step, we just join the room we're already viewing.
+        const room = "<%= room %>";
+        const myUsername = "<%= username %>";
 
-            socket.on("message", function (data) {
-                if (data.type === "image") {
-                    renderImageMessage(data.id, data.username, data.fileUrl);
-                } else {
-                    renderMessage(data.id, data.username, data.text);
+        socket.emit("joinroom", { roomId: room });
+
+        socket.on("message", function (data) {
+            if (data.type === "image") {
+                renderImageMessage(data.id, data.username, data.fileUrl);
+            } else {
+                renderMessage(data.id, data.username, data.text);
+            }
+        })
+
+        // --- Message deletion ---
+        // Event delegation: the delete buttons live inside messages that get created both by
+        // the server (page load) and dynamically by these render functions (live messages), so
+        // one listener on the container catches clicks from either source instead of needing
+        // to re-attach a listener every time a new message is rendered.
+        messagecontainer.addEventListener("click", async function (event) {
+            const forMeBtn = event.target.closest(".delete-for-me");
+            const forEveryoneBtn = event.target.closest(".delete-for-everyone");
+
+            if (forMeBtn) {
+                const id = forMeBtn.dataset.id;
+                const response = await fetch(`/messages/${id}/delete-for-me`, { method: "POST" });
+                if (response.ok) {
+                    // Only *my* view needs updating — nobody else is told, since this can never
+                    // affect what anyone else sees.
+                    document.querySelector(`[data-id="${id}"]`)?.remove();
                 }
-            })
+            }
 
-            // --- Message deletion ---
-            // Event delegation: the delete buttons live inside messages that get created both by
-            // the server (page load) and dynamically by these render functions (live messages), so
-            // one listener on the container catches clicks from either source instead of needing
-            // to re-attach a listener every time a new message is rendered.
-            messagecontainer.addEventListener("click", async function (event) {
-                const forMeBtn = event.target.closest(".delete-for-me");
-                const forEveryoneBtn = event.target.closest(".delete-for-everyone");
-
-                if (forMeBtn) {
-                    const id = forMeBtn.dataset.id;
-                    const response = await fetch(`/messages/${id}/delete-for-me`, { method: "POST" });
-                    if (response.ok) {
-                        // Only *my* view needs updating — nobody else is told, since this can never
-                        // affect what anyone else sees.
-                        document.querySelector(`[data-id="${id}"]`)?.remove();
-                    }
-                }
-
-                if (forEveryoneBtn) {
-                    if (!confirm("Delete this message for everyone? This cannot be undone.")) return;
-                    const id = forEveryoneBtn.dataset.id;
-                    const response = await fetch(`/messages/${id}/delete-for-everyone`, { method: "POST" });
-                    if (!response.ok) {
-                        const body = await response.json().catch(function () { return {}; });
-                        alert(body.error || "Couldn't delete this message.");
-                    }
-                    // No local update here — the server broadcasts "messageDeleted" back to the
-                    // whole room (sender included), and that's what actually swaps in the
-                    // placeholder. Same "wait for the server to confirm" pattern as sending a
-                    // message in the first place.
-                }
-            })
-
-            socket.on("messageDeleted", function ({ id }) {
-                const row = document.querySelector(`[data-id="${id}"]`);
-                if (!row) return;
-                // Only swaps out .message-body — leaves the sender's username label (a sibling
-                // element, not a child of this wrapper) untouched.
-                const body = row.querySelector(".message-body");
-                body.innerHTML = '<div class="bg-gray-100 text-gray-400 italic p-3 rounded-lg text-sm">This message was deleted</div>';
-            })
-
-            chatform.addEventListener("submit", function (event) {
-                event.preventDefault();
-                const text = messagebox.value.trim();
-                if (!text) return;
-                socket.emit("message", { room: room, text: text });
-                messagebox.value = "";
-                // No local optimistic render here — the server broadcasts the message back to
-                // everyone in the room, sender included, once it's saved to the database. That
-                // keeps "what's on screen" and "what's actually persisted" from ever disagreeing.
-            })
-
-            // --- Image upload ---
-            // Goes over a normal HTTP POST, not the socket connection — file uploads need
-            // multipart/form-data, which isn't something Socket.io sends. Once the server has
-            // saved it, it broadcasts a "message" event the same way text messages do, which is
-            // what actually makes the image appear for everyone (including the uploader).
-            const imageInput = document.querySelector("#imageinput");
-            imageInput.addEventListener("change", async function () {
-                const file = imageInput.files[0];
-                if (!file) return;
-
-                const formData = new FormData();
-                formData.append("image", file);
-
-                const response = await fetch(`/chat/${room}/upload`, {
-                    method: "POST",
-                    body: formData,
-                });
-
+            if (forEveryoneBtn) {
+                if (!confirm("Delete this message for everyone? This cannot be undone.")) return;
+                const id = forEveryoneBtn.dataset.id;
+                const response = await fetch(`/messages/${id}/delete-for-everyone`, { method: "POST" });
                 if (!response.ok) {
                     const body = await response.json().catch(function () { return {}; });
-                    alert(body.error || "Upload failed.");
+                    alert(body.error || "Couldn't delete this message.");
                 }
+                // No local update here — the server broadcasts "messageDeleted" back to the
+                // whole room (sender included), and that's what actually swaps in the
+                // placeholder. Same "wait for the server to confirm" pattern as sending a
+                // message in the first place.
+            }
+        })
 
-                imageInput.value = ""; // reset so selecting the same file again still fires "change"
-            })
+        socket.on("messageDeleted", function ({ id }) {
+            const row = document.querySelector(`[data-id="${id}"]`);
+            if (!row) return;
+            // Only swaps out .message-body — leaves the sender's username label (a sibling
+            // element, not a child of this wrapper) untouched.
+            const body = row.querySelector(".message-body");
+            body.innerHTML = '<div class="bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-gray-500 italic p-3 rounded-2xl text-sm">This message was deleted</div>';
+        })
 
-            // --- Presence ---
-            socket.on("presence", function (usernames) {
-                const others = usernames.filter(function (name) { return name !== myUsername; });
-                if (others.length === 0) {
-                    presenceBar.textContent = "Only you are here";
-                } else {
-                    presenceBar.textContent = "Online: " + usernames.join(", ");
-                }
-            })
+        chatform.addEventListener("submit", function (event) {
+            event.preventDefault();
+            const text = messagebox.value.trim();
+            if (!text) return;
+            socket.emit("message", { room: room, text: text });
+            messagebox.value = "";
+            // No local optimistic render here — the server broadcasts the message back to
+            // everyone in the room, sender included, once it's saved to the database. That
+            // keeps "what's on screen" and "what's actually persisted" from ever disagreeing.
+        })
 
-            // --- Typing indicator ---
-            // Debounced so a fast typist doesn't fire a socket event on every single keystroke —
-            // this only actually sends once per 500ms of continued typing, not once per keypress.
-            let typingDebounceTimer = null;
-            messagebox.addEventListener("input", function () {
-                if (typingDebounceTimer) return; // already have one queued, skip this keystroke
-                socket.emit("typing", { room: room });
-                typingDebounceTimer = setTimeout(function () {
-                    typingDebounceTimer = null;
-                }, 500);
-            })
+        // --- Image upload ---
+        // Goes over a normal HTTP POST, not the socket connection — file uploads need
+        // multipart/form-data, which isn't something Socket.io sends. Once the server has
+        // saved it, it broadcasts a "message" event the same way text messages do, which is
+        // what actually makes the image appear for everyone (including the uploader).
+        const imageInput = document.querySelector("#imageinput");
+        imageInput.addEventListener("change", async function () {
+            const file = imageInput.files[0];
+            if (!file) return;
 
-            let hideTypingTimer = null;
-            socket.on("typing", function ({ username: typingUsername }) {
-                typingIndicator.textContent = typingUsername + " is typing...";
-                // Every new "typing" event pushes the auto-hide back out — the indicator only
-                // disappears after ~2s with no further typing events from anyone.
-                clearTimeout(hideTypingTimer);
-                hideTypingTimer = setTimeout(function () {
-                    typingIndicator.textContent = "";
-                }, 2000);
-            })
+            const formData = new FormData();
+            formData.append("image", file);
 
-            // Shared by both render functions below — the delete-controls row is identical either
-            // way, only the bubble/image content above it differs.
-            function buildDeleteControls(id, isMine) {
-                const controls = document.createElement('div');
-                controls.classList.add('flex', 'gap-2', 'mt-1', isMine ? 'justify-end' : 'justify-start');
+            const response = await fetch(`/chat/${room}/upload`, {
+                method: "POST",
+                body: formData,
+            });
 
-                const deleteForMe = document.createElement('button');
-                deleteForMe.classList.add('delete-for-me', 'text-[10px]', 'text-gray-400', 'hover:underline');
-                deleteForMe.dataset.id = id;
-                deleteForMe.textContent = 'Delete for me';
-                controls.appendChild(deleteForMe);
-
-                if (isMine) {
-                    const deleteForEveryone = document.createElement('button');
-                    deleteForEveryone.classList.add('delete-for-everyone', 'text-[10px]', 'text-gray-400', 'hover:underline');
-                    deleteForEveryone.dataset.id = id;
-                    deleteForEveryone.textContent = 'Delete for everyone';
-                    controls.appendChild(deleteForEveryone);
-                }
-
-                return controls;
+            if (!response.ok) {
+                const body = await response.json().catch(function () { return {}; });
+                alert(body.error || "Upload failed.");
             }
 
-            function renderMessage(id, fromUsername, text) {
-                document.querySelector(".nobody")?.classList.add("hidden");
+            imageInput.value = ""; // reset so selecting the same file again still fires "change"
+        })
 
-                const isMine = fromUsername === myUsername;
+        // --- Presence ---
+        socket.on("presence", function (usernames) {
+            const others = usernames.filter(function (name) { return name !== myUsername; });
+            if (others.length === 0) {
+                presenceBar.textContent = "Only you are here";
+            } else {
+                presenceBar.textContent = "Online: " + usernames.join(", ");
+            }
+        })
 
-                const row = document.createElement('div');
-                row.classList.add('flex', 'my-2', isMine ? 'justify-end' : 'justify-start');
-                row.dataset.id = id;
+        // --- Typing indicator ---
+        // Debounced so a fast typist doesn't fire a socket event on every single keystroke —
+        // this only actually sends once per 500ms of continued typing, not once per keypress.
+        let typingDebounceTimer = null;
+        messagebox.addEventListener("input", function () {
+            if (typingDebounceTimer) return; // already have one queued, skip this keystroke
+            socket.emit("typing", { room: room });
+            typingDebounceTimer = setTimeout(function () {
+                typingDebounceTimer = null;
+            }, 500);
+        })
 
-                const wrap = document.createElement('div');
-                wrap.classList.add('max-w-xs');
+        let hideTypingTimer = null;
+        socket.on("typing", function ({ username: typingUsername }) {
+            typingIndicator.textContent = typingUsername + " is typing...";
+            // Every new "typing" event pushes the auto-hide back out — the indicator only
+            // disappears after ~2s with no further typing events from anyone.
+            clearTimeout(hideTypingTimer);
+            hideTypingTimer = setTimeout(function () {
+                typingIndicator.textContent = "";
+            }, 2000);
+        })
 
-                if (!isMine) {
-                    const label = document.createElement('p');
-                    label.classList.add('text-xs', 'text-gray-500', 'mb-1');
-                    label.textContent = fromUsername;
-                    wrap.appendChild(label);
-                }
+        // Shared by both render functions below — the delete-controls row is identical either
+        // way, only the bubble/image content above it differs.
+        function buildDeleteControls(id, isMine) {
+            const controls = document.createElement('div');
+            controls.classList.add('flex', 'gap-2', 'mt-1', isMine ? 'justify-end' : 'justify-start');
 
-                const body = document.createElement('div');
-                body.classList.add('message-body');
+            const deleteForMe = document.createElement('button');
+            deleteForMe.classList.add('delete-for-me', 'text-[10px]', 'text-gray-400', 'dark:text-gray-500', 'hover:underline');
+            deleteForMe.dataset.id = id;
+            deleteForMe.textContent = 'Delete for me';
+            controls.appendChild(deleteForMe);
 
-                const bubble = document.createElement('div');
-                bubble.classList.add('p-3', 'rounded-lg', ...(isMine ? ['bg-blue-500', 'text-white'] : ['bg-gray-300', 'text-gray-800']));
-
-                const p = document.createElement('p');
-                p.textContent = text;
-                bubble.appendChild(p);
-                body.appendChild(bubble);
-                body.appendChild(buildDeleteControls(id, isMine));
-                wrap.appendChild(body);
-                row.appendChild(wrap);
-
-                messagecontainer.appendChild(row);
-                messagecontainer.scrollTop = messagecontainer.scrollHeight;
+            if (isMine) {
+                const deleteForEveryone = document.createElement('button');
+                deleteForEveryone.classList.add('delete-for-everyone', 'text-[10px]', 'text-gray-400', 'dark:text-gray-500', 'hover:underline');
+                deleteForEveryone.dataset.id = id;
+                deleteForEveryone.textContent = 'Delete for everyone';
+                controls.appendChild(deleteForEveryone);
             }
 
-            function renderImageMessage(id, fromUsername, fileUrl) {
-                document.querySelector(".nobody")?.classList.add("hidden");
+            return controls;
+        }
 
-                const isMine = fromUsername === myUsername;
+        function renderMessage(id, fromUsername, text) {
+            document.querySelector(".nobody")?.classList.add("hidden");
 
-                const row = document.createElement('div');
-                row.classList.add('flex', 'my-2', isMine ? 'justify-end' : 'justify-start');
-                row.dataset.id = id;
+            const isMine = fromUsername === myUsername;
 
-                const wrap = document.createElement('div');
-                wrap.classList.add('max-w-xs');
+            const row = document.createElement('div');
+            row.classList.add('flex', 'my-2', isMine ? 'justify-end' : 'justify-start');
+            row.dataset.id = id;
 
-                if (!isMine) {
-                    const label = document.createElement('p');
-                    label.classList.add('text-xs', 'text-gray-500', 'mb-1');
-                    label.textContent = fromUsername;
-                    wrap.appendChild(label);
-                }
+            const wrap = document.createElement('div');
+            wrap.classList.add('max-w-xs');
 
-                const body = document.createElement('div');
-                body.classList.add('message-body');
-
-                const img = document.createElement('img');
-                img.src = fileUrl;
-                img.alt = 'shared image';
-                img.classList.add('rounded-lg', 'max-w-full', 'max-h-64');
-                body.appendChild(img);
-                body.appendChild(buildDeleteControls(id, isMine));
-                wrap.appendChild(body);
-                row.appendChild(wrap);
-
-                messagecontainer.appendChild(row);
-                messagecontainer.scrollTop = messagecontainer.scrollHeight;
+            if (!isMine) {
+                const label = document.createElement('p');
+                label.classList.add('text-xs', 'text-gray-500', 'dark:text-gray-400', 'mb-1');
+                label.textContent = fromUsername;
+                wrap.appendChild(label);
             }
 
-            // scroll to the bottom of the server-rendered history on first load
+            const body = document.createElement('div');
+            body.classList.add('message-body');
+
+            const bubble = document.createElement('div');
+            bubble.classList.add('p-3', 'rounded-2xl', ...(isMine ? ['bg-indigo-600', 'text-white'] : ['bg-white', 'dark:bg-slate-700', 'text-gray-800', 'dark:text-gray-100', 'border', 'border-gray-200', 'dark:border-slate-600']));
+
+            const p = document.createElement('p');
+            p.classList.add('text-sm');
+            p.textContent = text;
+            bubble.appendChild(p);
+            body.appendChild(bubble);
+            body.appendChild(buildDeleteControls(id, isMine));
+            wrap.appendChild(body);
+            row.appendChild(wrap);
+
+            messagecontainer.appendChild(row);
             messagecontainer.scrollTop = messagecontainer.scrollHeight;
+        }
 
-            // WEBRTC START
-            // Known limitation: this is still a 1-on-1 signaling flow (RTCPeerConnection only
-            // ever talks to one peer). In a room with more than 2 people, "Video Call" broadcasts
-            // to everyone in the room and whoever accepts first connects — true group video
-            // calling would need per-target signaling (or an SFU server) and isn't built here.
-            let localStream;
-            let remoteStream;
-            let peerConnection;
-            let inCall = false;
+        function renderImageMessage(id, fromUsername, fileUrl) {
+            document.querySelector(".nobody")?.classList.add("hidden");
 
-            const rtcSettings = {
-                iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-            };
+            const isMine = fromUsername === myUsername;
 
-            const initialize = async () => {
-                socket.on("signalingMessage", handleSignalingMessage);
+            const row = document.createElement('div');
+            row.classList.add('flex', 'my-2', isMine ? 'justify-end' : 'justify-start');
+            row.dataset.id = id;
 
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        audio: true,
-                        video: true
-                    })
-                    document.querySelector("#localVideo").srcObject = localStream;
-                    document.querySelector("#localVideo").style.display = "block";
+            const wrap = document.createElement('div');
+            wrap.classList.add('max-w-xs');
 
-                    initiateOffer();
-
-                    inCall = true;
-                }
-                catch (err) {
-                    console.log("Rejected by browser" + err);
-                }
+            if (!isMine) {
+                const label = document.createElement('p');
+                label.classList.add('text-xs', 'text-gray-500', 'dark:text-gray-400', 'mb-1');
+                label.textContent = fromUsername;
+                wrap.appendChild(label);
             }
 
-            const initiateOffer = async () => {
-                await createPeerConnection();
-                try {
-                    const offer = await peerConnection.createOffer();
-                    await peerConnection.setLocalDescription(offer);
+            const body = document.createElement('div');
+            body.classList.add('message-body');
+
+            const img = document.createElement('img');
+            img.src = fileUrl;
+            img.alt = 'shared image';
+            img.classList.add('rounded-2xl', 'max-w-full', 'max-h-64');
+            body.appendChild(img);
+            body.appendChild(buildDeleteControls(id, isMine));
+            wrap.appendChild(body);
+            row.appendChild(wrap);
+
+            messagecontainer.appendChild(row);
+            messagecontainer.scrollTop = messagecontainer.scrollHeight;
+        }
+
+        // scroll to the bottom of the server-rendered history on first load
+        messagecontainer.scrollTop = messagecontainer.scrollHeight;
+
+        // WEBRTC START
+        // Known limitation: this is still a 1-on-1 signaling flow (RTCPeerConnection only
+        // ever talks to one peer). In a room with more than 2 people, "Video Call" broadcasts
+        // to everyone in the room and whoever accepts first connects — true group video
+        // calling would need per-target signaling (or an SFU server) and isn't built here.
+        let localStream;
+        let remoteStream;
+        let peerConnection;
+        let inCall = false;
+
+        const rtcSettings = {
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+        };
+
+        const initialize = async () => {
+            socket.on("signalingMessage", handleSignalingMessage);
+
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: true
+                })
+                document.querySelector("#localVideo").srcObject = localStream;
+                document.querySelector("#localVideo").style.display = "block";
+
+                initiateOffer();
+
+                inCall = true;
+            }
+            catch (err) {
+                console.log("Rejected by browser" + err);
+            }
+        }
+
+        const initiateOffer = async () => {
+            await createPeerConnection();
+            try {
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                socket.emit("signalingMessage", {
+                    room,
+                    message: JSON.stringify({
+                        type: "offer",
+                        offer
+                    })
+                })
+            }
+            catch (err) {
+                console.log("error in creating offer" + err);
+            }
+        }
+
+        const createPeerConnection = () => {
+            peerConnection = new RTCPeerConnection(rtcSettings);
+
+            remoteStream = new MediaStream();
+
+            document.querySelector("#remoteVideo").srcObject = remoteStream;
+            document.querySelector("#remoteVideo").style.display = "block";
+            document.querySelector("#localVideo").classList.add("smallFrame");
+
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            })
+
+            peerConnection.ontrack = (event) => {
+                event.streams[0].getTracks().forEach(track => {
+                    remoteStream.addTrack(track);
+                })
+            }
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    console.log("Sending Ice Candidates");
+
                     socket.emit("signalingMessage", {
                         room,
                         message: JSON.stringify({
-                            type: "offer",
-                            offer
+                            type: "candidate",
+                            candidate: event.candidate
                         })
                     })
                 }
-                catch (err) {
-                    console.log("error in creating offer" + err);
-                }
             }
 
-            const createPeerConnection = () => {
-                peerConnection = new RTCPeerConnection(rtcSettings);
-
-                remoteStream = new MediaStream();
-
-                document.querySelector("#remoteVideo").srcObject = remoteStream;
-                document.querySelector("#remoteVideo").style.display = "block";
-                document.querySelector("#localVideo").classList.add("smallFrame");
-
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                })
-
-                peerConnection.ontrack = (event) => {
-                    event.streams[0].getTracks().forEach(track => {
-                        remoteStream.addTrack(track);
-                    })
-                }
-
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        console.log("Sending Ice Candidates");
-
-                        socket.emit("signalingMessage", {
-                            room,
-                            message: JSON.stringify({
-                                type: "candidate",
-                                candidate: event.candidate
-                            })
-                        })
-                    }
-                }
-
-                peerConnection.onconnectionstatechange = () => {
-                    console.log("connection state change hui ", peerConnection.connectionState);
-                }
+            peerConnection.onconnectionstatechange = () => {
+                console.log("connection state change hui ", peerConnection.connectionState);
             }
+        }
 
-            const handleSignalingMessage = async (message) => {
-                const { type, offer, answer, candidate } = JSON.parse(message);
-                if (type === "offer") handleOffer(offer);
-                if (type === "answer") handleAnswer(answer);
-                if (type === "candidate" && peerConnection) {
-                    try { await peerConnection.addIceCandidate(candidate); }
-                    catch (error) {
-                        console.log(error);
-                    }
-                }
-                if (type === "hangup") {
-                    hangup()
-                }
-            }
-
-            const handleOffer = async (offer) => {
-                await createPeerConnection();
-                try {
-                    await peerConnection.setRemoteDescription(offer);
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    socket.emit("signalingMessage", { room, message: JSON.stringify({ type: "answer", answer }) });
-                    inCall = true;
-                }
+        const handleSignalingMessage = async (message) => {
+            const { type, offer, answer, candidate } = JSON.parse(message);
+            if (type === "offer") handleOffer(offer);
+            if (type === "answer") handleAnswer(answer);
+            if (type === "candidate" && peerConnection) {
+                try { await peerConnection.addIceCandidate(candidate); }
                 catch (error) {
-                    console.log("failed to handle offer");
+                    console.log(error);
                 }
             }
-
-            const handleAnswer = async (answer) => {
-                try {
-                    await peerConnection.setRemoteDescription(answer);
-                }
-                catch (error) {
-                    console.log("failed to handle answer");
-                }
+            if (type === "hangup") {
+                hangup()
             }
+        }
+
+        const handleOffer = async (offer) => {
+            await createPeerConnection();
+            try {
+                await peerConnection.setRemoteDescription(offer);
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                socket.emit("signalingMessage", { room, message: JSON.stringify({ type: "answer", answer }) });
+                inCall = true;
+            }
+            catch (error) {
+                console.log("failed to handle offer");
+            }
+        }
+
+        const handleAnswer = async (answer) => {
+            try {
+                await peerConnection.setRemoteDescription(answer);
+            }
+            catch (error) {
+                console.log("failed to handle answer");
+            }
+        }
 
 
-            document.querySelector("#video-call-btn")
-                .addEventListener("click", function () {
-                    socket.emit("startVideoCall", { room })
-                })
-
-            socket.on("incomingCall", function ({ from }) {
-                document.querySelector("#incoming-call-text").textContent = `Incoming call from ${from}...`;
-                document.querySelector("#incoming-call").classList.remove("hidden");
+        document.querySelector("#video-call-btn")
+            .addEventListener("click", function () {
+                socket.emit("startVideoCall", { room })
             })
 
-            socket.on("callAccepted", function () {
-                initialize();
-                document.querySelector(".videoblock").classList.remove("hidden");
-            })
-
-            document.querySelector("#accept-call")
-                .addEventListener("click", function () {
-                    document.querySelector("#incoming-call").classList.add("hidden");
-                    initialize();
-                    document.querySelector(".videoblock").classList.remove("hidden");
-                    socket.emit("acceptCall", { room })
-                })
-        document.querySelector("#reject-call").addEventListener("click",function(){
-            document.querySelector("#incoming-call").classList.add("hidden");
-            socket.emit("rejectCall",{room});
+        socket.on("incomingCall", function ({ from }) {
+            document.querySelector("#incoming-call-text").textContent = `Incoming call from ${from}...`;
+            document.querySelector("#incoming-call").classList.remove("hidden");
         })
 
-        socket.on("callRejected",function(){
+        socket.on("callAccepted", function () {
+            initialize();
+            document.querySelector(".videoblock").classList.remove("hidden");
+        })
+
+        document.querySelector("#accept-call")
+            .addEventListener("click", function () {
+                document.querySelector("#incoming-call").classList.add("hidden");
+                initialize();
+                document.querySelector(".videoblock").classList.remove("hidden");
+                socket.emit("acceptCall", { room })
+            })
+        document.querySelector("#reject-call").addEventListener("click", function () {
+            document.querySelector("#incoming-call").classList.add("hidden");
+            socket.emit("rejectCall", { room });
+        })
+
+        socket.on("callRejected", function () {
             alert("call rejected by the user");
         })
 
         document.querySelector("#hangup")
-        .addEventListener("click", function () {
-            hangup();
-        })
+            .addEventListener("click", function () {
+                hangup();
+            })
 
         document.querySelector("#cameraButton")
-        .addEventListener("click",function(){
-            toggleCamera();
-        })
+            .addEventListener("click", function () {
+                toggleCamera();
+            })
 
         document.querySelector("#micButton")
-        .addEventListener("click",function(){
+            .addEventListener("click", function () {
 
-            toggleMute();
-        })
+                toggleMute();
+            })
 
         function toggleMute() {
             if (localStream) {
@@ -645,20 +725,18 @@
             }
         }
 
-    function hangup() {
-        if (peerConnection) {
-            peerConnection.close();
-            peerConnection = null;
-            localStream.getTracks().forEach(track => track.stop());
+        function hangup() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+                localStream.getTracks().forEach(track => track.stop());
 
-            document.querySelector(".videoblock").classList.add("hidden");
-            socket.emit("signalingMessage", { room, message: JSON.stringify({ type: "hangup" }) });
-            inCall = false;
+                document.querySelector(".videoblock").classList.add("hidden");
+                socket.emit("signalingMessage", { room, message: JSON.stringify({ type: "hangup" }) });
+                inCall = false;
+            }
         }
-    }
-
-
-        </script>
+    </script>
 </body>
 
 </html>

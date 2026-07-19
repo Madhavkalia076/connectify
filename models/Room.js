@@ -25,6 +25,14 @@ const roomSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
+  description: {
+    type: String,
+    default: '',
+    maxlength: 200,
+  },
+  imageUrl: {
+    type: String, // set only once the owner uploads one — falls back to the "#" icon in the UI
+  },
   createdAt: {
     type: Date,
     default: Date.now,

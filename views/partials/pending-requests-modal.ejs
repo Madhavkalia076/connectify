@@ -1,0 +1,58 @@
+<!-- Only ever included/rendered for the room owner of an approval-required room — see chat.ejs -->
+<div id="pending-requests-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm p-6 max-h-[85vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold text-lg">Pending join requests</h2>
+            <button id="pending-requests-close" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <% if (pendingRequests.length === 0) { %>
+            <p class="text-sm text-gray-400 dark:text-gray-500 text-center py-4">No pending requests right now.</p>
+        <% } %>
+        <div class="flex flex-col gap-2">
+            <% pendingRequests.forEach(function(requester) { %>
+                <div class="flex items-center justify-between gap-2 py-1.5 border-b border-gray-100 dark:border-slate-700 last:border-0">
+                    <span class="text-sm truncate"><%= requester %></span>
+                    <div class="flex gap-2 shrink-0">
+                        <form method="POST" action="/chat/<%= room %>/approve">
+                            <input type="hidden" name="username" value="<%= requester %>">
+                            <button type="submit"
+                                class="bg-green-500 text-white text-xs py-1.5 px-3 rounded-lg hover:bg-green-600 transition-colors">Approve</button>
+                        </form>
+                        <form method="POST" action="/chat/<%= room %>/reject">
+                            <input type="hidden" name="username" value="<%= requester %>">
+                            <button type="submit"
+                                class="bg-red-500 text-white text-xs py-1.5 px-3 rounded-lg hover:bg-red-600 transition-colors">Reject</button>
+                        </form>
+                    </div>
+                </div>
+            <% }) %>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const modal = document.getElementById('pending-requests-modal');
+        const openBtn = document.getElementById('pending-requests-btn');
+        const closeBtn = document.getElementById('pending-requests-close');
+
+        function openModal() {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+        function closeModal() {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+        openBtn?.addEventListener('click', openModal);
+        closeBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) closeModal();
+        });
+    })();
+</script>

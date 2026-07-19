@@ -2,31 +2,57 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Log In — Connectify</title>
-  <link href="/css/style.css" rel="stylesheet">
+  <%- include('partials/head', { title: 'Log In — Connectify' }) %>
 </head>
 
-<body class="flex items-center justify-center h-screen bg-gray-200">
-  <div class="bg-white flex items-center flex-col p-8 rounded-lg shadow-md w-full max-w-xs">
-    <h1 class="text-2xl font-bold mb-4 text-center">Log in</h1>
+<body class="min-h-screen bg-slate-100 dark:bg-slate-900 font-sans text-gray-900 dark:text-gray-100 flex flex-col">
 
-    <% if (error) { %>
-      <p class="text-red-600 text-sm mb-4"><%= error %></p>
-    <% } %>
+  <header class="flex items-center justify-between px-6 py-4">
+    <a href="/" class="flex items-center gap-2">
+      <svg class="w-6 h-6 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+      </svg>
+      <span class="font-semibold">Connectify</span>
+    </a>
+    <%- include('partials/theme-toggle') %>
+  </header>
 
-    <form method="POST" action="/login" class="w-full flex flex-col gap-3">
-      <input type="text" name="username" placeholder="Username" required
-        class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-      <input type="password" name="password" placeholder="Password" required
-        class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-      <button type="submit"
-        class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">Log In</button>
-    </form>
+  <main class="flex-1 flex items-center justify-center px-4">
+    <div class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 flex flex-col p-8 rounded-2xl shadow-lg w-full max-w-sm">
+      <h1 class="text-2xl font-bold mb-1 text-center">Welcome back</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 text-center mb-6">Log in to keep chatting</p>
 
-    <a href="/signup" class="text-sm text-indigo-600 mt-4 hover:underline">Need an account? Sign up</a>
-  </div>
+      <% if (error) { %>
+        <p class="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg px-3 py-2 mb-4">
+          <%= error %>
+        </p>
+      <% } %>
+
+      <form method="POST" action="/login" class="flex flex-col gap-3">
+        <div>
+          <label for="username" class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Username</label>
+          <input type="text" id="username" name="username" required autofocus
+            class="w-full border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+        <div>
+          <label for="password" class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Password</label>
+          <input type="password" id="password" name="password" required
+            class="w-full border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+        <button type="submit"
+          class="mt-2 bg-indigo-600 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm">
+          Log In
+        </button>
+      </form>
+
+      <p class="text-sm text-gray-500 dark:text-gray-400 text-center mt-6">
+        Need an account?
+        <a href="/signup" class="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">Sign up</a>
+      </p>
+    </div>
+  </main>
+
 </body>
 
 </html>

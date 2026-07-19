@@ -1,0 +1,118 @@
+<!-- Room Info modal — image, description, participants. Image/description are editable inline
+     by the owner only; everyone can view all three. -->
+<div id="room-info-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm p-6 max-h-[85vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold text-lg">Room Info</h2>
+            <button id="room-info-close" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="flex flex-col items-center">
+            <% if (isOwner) { %>
+                <form id="room-image-form" method="POST" action="/chat/<%= room %>/settings" enctype="multipart/form-data">
+                    <label for="room-image-input"
+                        class="relative block w-20 h-20 rounded-full cursor-pointer group" title="Change room image">
+                        <% if (imageUrl) { %>
+                            <img src="<%= imageUrl %>" alt="" class="w-20 h-20 rounded-full object-cover">
+                        <% } else { %>
+                            <span class="w-20 h-20 rounded-full bg-indigo-50 dark:bg-indigo-500/15 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-2xl font-semibold">
+                                <%= room.slice(0, 1).toUpperCase() %>
+                            </span>
+                        <% } %>
+                        <span class="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/40 flex items-center justify-center transition-colors">
+                            <svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+                            </svg>
+                        </span>
+                    </label>
+                    <input type="file" id="room-image-input" name="image" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden">
+                </form>
+            <% } else { %>
+                <% if (imageUrl) { %>
+                    <img src="<%= imageUrl %>" alt="" class="w-20 h-20 rounded-full object-cover">
+                <% } else { %>
+                    <span class="w-20 h-20 rounded-full bg-indigo-50 dark:bg-indigo-500/15 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-2xl font-semibold">
+                        <%= room.slice(0, 1).toUpperCase() %>
+                    </span>
+                <% } %>
+            <% } %>
+            <h3 class="font-semibold text-lg mt-3">#<%= room %></h3>
+        </div>
+
+        <div class="mt-5">
+            <h4 class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Description</h4>
+            <% if (isOwner) { %>
+                <form method="POST" action="/chat/<%= room %>/settings" class="flex flex-col gap-2">
+                    <textarea name="description" maxlength="200" rows="2" placeholder="What's this room about?"
+                        class="w-full border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"><%= description %></textarea>
+                    <button type="submit"
+                        class="self-end text-xs bg-indigo-600 text-white py-1.5 px-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors">
+                        Save
+                    </button>
+                </form>
+            <% } else { %>
+                <p class="text-sm text-gray-600 dark:text-gray-300">
+                    <%= description && description.length > 0 ? description : 'No description set.' %>
+                </p>
+            <% } %>
+        </div>
+
+        <div class="mt-5">
+            <h4 class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                Participants
+                <% if (!requiresApproval) { %> (currently online) <% } %>
+                — <%= participants.length %>
+            </h4>
+            <div class="flex flex-col gap-1 max-h-40 overflow-y-auto">
+                <% if (participants.length === 0) { %>
+                    <p class="text-xs text-gray-400 dark:text-gray-500">Nobody here right now.</p>
+                <% } %>
+                <% participants.forEach(function(p) { %>
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="w-2 h-2 rounded-full shrink-0 <%= p.online ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600' %>"></span>
+                        <span class="truncate"><%= p.username %></span>
+                        <% if (p.username === roomOwner) { %>
+                            <span class="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">owner</span>
+                        <% } %>
+                    </div>
+                <% }) %>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const modal = document.getElementById('room-info-modal');
+        const openBtn = document.getElementById('room-info-btn');
+        const closeBtn = document.getElementById('room-info-close');
+
+        function openModal() {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+        function closeModal() {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+        openBtn?.addEventListener('click', openModal);
+        closeBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) closeModal();
+        });
+
+        // Clicking the room avatar (owner only) opens the file picker; picking a file
+        // auto-submits the form immediately, same pattern as the message image attach button.
+        const imageInput = document.getElementById('room-image-input');
+        imageInput?.addEventListener('change', function () {
+            if (imageInput.files.length > 0) {
+                document.getElementById('room-image-form').submit();
+            }
+        });
+    })();
+</script>

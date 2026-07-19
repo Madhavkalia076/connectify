@@ -41,7 +41,7 @@ const upload = multer({
 
 router.get('/chat', requireAuth, async (req, res) => {
   const rooms = await Room.find().sort({ createdAt: -1 });
-  res.render('rooms', { rooms, error: null, username: req.session.username });
+  res.render('rooms', { rooms, roomError: null, username: req.session.username });
 });
 
 router.post('/chat/rooms', requireAuth, async (req, res) => {
@@ -55,7 +55,7 @@ router.post('/chat/rooms', requireAuth, async (req, res) => {
     return res.render('rooms', {
       rooms,
       username: req.session.username,
-      error: 'Room names must be 2-30 characters: letters, numbers, - or _ only.',
+      roomError: 'Room names must be 2-30 characters: letters, numbers, - or _ only.',
     });
   }
 
@@ -83,10 +83,13 @@ router.get('/chat/:roomId', requireAuth, async (req, res) => {
   // Open rooms skip all of this entirely and behave exactly as before.
   if (room.requiresApproval && !isOwner && !isMember) {
     const isPending = room.pendingRequests.includes(req.session.username);
+    const rooms = await Room.find().sort({ createdAt: -1 });
     return res.render('room-access', {
       room: room.name,
       username: req.session.username,
       isPending,
+      rooms,
+      activeRoom: room.name,
     });
   }
 
@@ -103,6 +106,17 @@ router.get('/chat/:roomId', requireAuth, async (req, res) => {
     .filter((msg) => !msg.deletedFor.includes(req.session.username))
     .reverse();
 
+  const rooms = await Room.find().sort({ createdAt: -1 });
+
+  // "Participants" means something different depending on the room type: approval-required rooms
+  // have a real, persistent member list (so we show everyone, with a live online/offline dot);
+  // open rooms never track membership at all, so the only honest answer for "who's here" is
+  // whoever's actually connected right now.
+  const onlineUsers = req.app.get('getOnlineUsers')(room.name);
+  const participants = room.requiresApproval
+    ? room.members.map((name) => ({ username: name, online: onlineUsers.includes(name) }))
+    : onlineUsers.map((name) => ({ username: name, online: true }));
+
   res.render('chat', {
     room: room.name,
     username: req.session.username,
@@ -111,8 +125,14 @@ router.get('/chat/:roomId', requireAuth, async (req, res) => {
     // requireAuth already proved *who* you are, this is the separate check for *what
     // you're allowed to do*
     isOwner,
+    roomOwner: room.createdBy,
     requiresApproval: room.requiresApproval,
     pendingRequests: isOwner ? room.pendingRequests : [],
+    description: room.description,
+    imageUrl: room.imageUrl,
+    participants,
+    rooms,
+    activeRoom: room.name,
   });
 });
 
@@ -190,6 +210,39 @@ router.post('/chat/:roomId/leave', requireAuth, async (req, res) => {
   }
 
   res.redirect('/chat');
+});
+
+router.post('/chat/:roomId/settings', requireAuth, function (req, res) {
+  upload.single('image')(req, res, async function (err) {
+    if (err) {
+      return res.status(400).send(err.message);
+    }
+
+    const room = await Room.findOne({ name: req.params.roomId });
+    if (!room) {
+      return res.redirect('/chat');
+    }
+
+    // Same authorization pattern as everything else owner-only: authentication (requireAuth)
+    // only proves someone is logged in, this proves they're allowed to change *this* room.
+    if (room.createdBy !== req.session.username) {
+      return res.status(403).send('Only the room owner can change room settings.');
+    }
+
+    if (typeof req.body.description === 'string') {
+      room.description = req.body.description.trim().slice(0, 200);
+    }
+    if (req.file) {
+      room.imageUrl = `/uploads/${req.file.filename}`;
+    }
+    await room.save();
+
+    // Known limitation, scoped out deliberately: this doesn't broadcast live to anyone else
+    // currently viewing the room — they'll see the updated description/image next time they
+    // load the page, not instantly. Real-time room-metadata sync would need its own socket event,
+    // and wasn't worth the added complexity alongside everything else in this pass.
+    res.redirect(`/chat/${room.name}`);
+  });
 });
 
 router.post('/chat/:roomId/upload', requireAuth, function (req, res) {
