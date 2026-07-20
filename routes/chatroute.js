@@ -5,6 +5,7 @@ const multer = require('multer');
 const requireAuth = require('../middleware/requireAuth');
 const Room = require('../models/Room');
 const Message = require('../models/Message');
+const User = require('../models/User');
 
 // Only letters, numbers, hyphens, underscores — keeps room names safe to put straight into a URL
 // without needing to think about encoding, and stops someone naming a room "../../etc".
@@ -39,9 +40,35 @@ const upload = multer({
   },
 });
 
+// Unread badge count per room = messages sent by *someone else* after this user's last visit to
+// that room. `user.lastRead` only has entries for rooms actually visited before, so a room never
+// opened defaults to the epoch (i.e. everything in it counts as unread) via `|| new Date(0)`.
+//
+// Only computed for rooms the user can actually read — an approval-required room they were never
+// approved for is still listed in the sidebar (so they can request to join it), but showing an
+// unread count for it would leak "this private room has activity" to someone not allowed to see
+// the messages themselves.
+async function computeUnreadCounts(rooms, user) {
+  const accessibleRooms = rooms.filter((room) => (
+    !room.requiresApproval || room.createdBy === user.username || room.members.includes(user.username)
+  ));
+  const entries = await Promise.all(accessibleRooms.map(async (room) => {
+    const lastRead = user.lastRead.get(room.name) || new Date(0);
+    const count = await Message.countDocuments({
+      roomId: room.name,
+      username: { $ne: user.username },
+      createdAt: { $gt: lastRead },
+    });
+    return [room.name, count];
+  }));
+  return Object.fromEntries(entries);
+}
+
 router.get('/chat', requireAuth, async (req, res) => {
   const rooms = await Room.find().sort({ createdAt: -1 });
-  res.render('rooms', { rooms, roomError: null, username: req.session.username });
+  const user = await User.findOne({ username: req.session.username });
+  const unreadCounts = await computeUnreadCounts(rooms, user);
+  res.render('rooms', { rooms, roomError: null, username: req.session.username, unreadCounts });
 });
 
 router.post('/chat/rooms', requireAuth, async (req, res) => {
@@ -78,20 +105,30 @@ router.get('/chat/:roomId', requireAuth, async (req, res) => {
   const isOwner = room.createdBy === req.session.username;
   const isMember = room.members.includes(req.session.username);
 
+  const rooms = await Room.find().sort({ createdAt: -1 });
+  const user = await User.findOne({ username: req.session.username });
+
   // Approval-required rooms have three states for a non-owner visitor: already a member (show the
   // chat), already requested and waiting, or never requested (show a "request to join" screen).
   // Open rooms skip all of this entirely and behave exactly as before.
   if (room.requiresApproval && !isOwner && !isMember) {
     const isPending = room.pendingRequests.includes(req.session.username);
-    const rooms = await Room.find().sort({ createdAt: -1 });
+    const unreadCounts = await computeUnreadCounts(rooms, user);
     return res.render('room-access', {
       room: room.name,
       username: req.session.username,
       isPending,
       rooms,
       activeRoom: room.name,
+      unreadCounts,
     });
   }
+
+  // Mark this room read *before* computing unread counts below, so its own sidebar entry shows
+  // zero on this page load rather than whatever it was right before this visit.
+  user.lastRead.set(room.name, new Date());
+  await user.save();
+  const unreadCounts = await computeUnreadCounts(rooms, user);
 
   // Fetch the most recent 50 messages, newest first (so .limit() grabs the right ones),
   // then reverse to chronological order for rendering top-to-bottom like a normal chat log.
@@ -105,8 +142,6 @@ router.get('/chat/:roomId', requireAuth, async (req, res) => {
   const messages = recentMessages
     .filter((msg) => !msg.deletedFor.includes(req.session.username))
     .reverse();
-
-  const rooms = await Room.find().sort({ createdAt: -1 });
 
   // "Participants" means something different depending on the room type: approval-required rooms
   // have a real, persistent member list (so we show everyone, with a live online/offline dot);
@@ -133,6 +168,7 @@ router.get('/chat/:roomId', requireAuth, async (req, res) => {
     participants,
     rooms,
     activeRoom: room.name,
+    unreadCounts,
   });
 });
 
@@ -278,6 +314,7 @@ router.post('/chat/:roomId/upload', requireAuth, function (req, res) {
       username: saved.username,
       type: 'image',
       fileUrl: saved.fileUrl,
+      room: room.name,
     });
 
     res.json({ ok: true });

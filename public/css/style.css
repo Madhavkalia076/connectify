@@ -827,6 +827,10 @@ video {
   height: 2.25rem;
 }
 
+.h-\[18px\] {
+  height: 18px;
+}
+
 .h-dvh {
   height: 100dvh;
 }
@@ -905,6 +909,10 @@ video {
 
 .min-w-0 {
   min-width: 0px;
+}
+
+.min-w-\[18px\] {
+  min-width: 18px;
 }
 
 .max-w-2xl {
@@ -1192,6 +1200,11 @@ video {
 
 .p-8 {
   padding: 2rem;
+}
+
+.px-1 {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
 }
 
 .px-3 {

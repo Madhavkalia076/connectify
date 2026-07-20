@@ -107,7 +107,21 @@ function removePresence(roomId, username, socketId) {
 function broadcastPresence(roomId) {
   const usersInRoom = roomPresence.get(roomId);
   const usernames = usersInRoom ? Array.from(usersInRoom.keys()) : [];
-  io.to(roomId).emit("presence", usernames);
+  // roomId travels with the payload because, since unread badges started listening to every room
+  // a user can see over one shared connection, a client can no longer assume "any presence event
+  // I receive must be for the room I'm currently looking at."
+  io.to(roomId).emit("presence", { roomId, usernames });
+}
+
+// Membership check shared by "joinroom" and "watchRoom" below — both need to confirm the socket's
+// user is actually allowed into this room before letting Socket.io group them into it.
+async function canAccessRoom(roomId, username) {
+  const room = await Room.findOne({ name: roomId });
+  if (!room) return false;
+  if (room.requiresApproval && room.createdBy !== username && !room.members.includes(username)) {
+    return false;
+  }
+  return true;
 }
 
 // Lets HTTP routes (chatroute.js's participants list) read live presence data without needing
@@ -132,16 +146,14 @@ io.on("connection",function(socket){
 
   // Named rooms replace the old random-pairing queue: the client already knows which room it's
   // in (chosen on the /chat/:roomId page), so joining is just "put this socket in that room."
+  // This is specifically for the room the user is *actively viewing* — it's the only join that
+  // affects presence (the "Online: ..." bar and the Room Info participant list).
   socket.on("joinroom",async function({ roomId }){
     // Defense in depth, same reasoning as the session check above: the /chat/:roomId page already
     // blocks non-members of an approval-required room from ever seeing the chat UI, but nothing
     // stops someone from opening a raw socket connection and emitting "joinroom" directly for a
     // room they were never approved for. Checking membership again here closes that gap.
-    const room=await Room.findOne({ name: roomId });
-    if(!room) return;
-    if(room.requiresApproval && room.createdBy!==username && !room.members.includes(username)){
-      return;
-    }
+    if(!(await canAccessRoom(roomId, username))) return;
 
     socket.join(roomId);
     joinedRoom=roomId;
@@ -149,10 +161,20 @@ io.on("connection",function(socket){
     broadcastPresence(roomId);
   });
 
+  // Joins a room's broadcast channel *without* presence tracking — used by the sidebar to receive
+  // live "message" events (for unread badges) from every room a user can see, without falsely
+  // making them appear "online" in rooms they're not actually viewing. A user can be watching many
+  // rooms at once but only ever actively present ("joinroom") in one.
+  socket.on("watchRoom",async function({ roomId }){
+    if(!(await canAccessRoom(roomId, username))) return;
+    socket.join(roomId);
+  });
+
   // Relayed straight to everyone else in the room, no debounce logic needed server-side — the
-  // client already debounces how often it sends these (see chat.ejs).
+  // client already debounces how often it sends these (see chat.ejs). room travels with the
+  // payload so a client watching multiple rooms at once can tell this apart from a background one.
   socket.on("typing",function({room}){
-    socket.broadcast.to(room).emit("typing",{ username });
+    socket.broadcast.to(room).emit("typing",{ username, room });
   });
 
   socket.on("disconnect",function(){
@@ -163,7 +185,7 @@ io.on("connection",function(socket){
   });
 
   socket.on("signalingMessage",function(data){
-    socket.broadcast.to(data.room).emit("signalingMessage",data.message)
+    socket.broadcast.to(data.room).emit("signalingMessage",{ room: data.room, message: data.message })
   })
 
   socket.on("message",async function(data){
@@ -174,20 +196,21 @@ io.on("connection",function(socket){
     // io.to (not socket.broadcast.to) includes the sender too — with multiple people per room,
     // the client tells "my own message" apart from others by comparing usernames, not by relying
     // on the server to skip the sender. The id lets the client later target this exact message for
-    // deletion (delete-for-me / delete-for-everyone).
-    io.to(data.room).emit("message",{ id: saved._id.toString(), username: saved.username, text: saved.text });
+    // deletion (delete-for-me / delete-for-everyone). room lets a client watching several rooms at
+    // once (for unread badges) tell which one this belongs to.
+    io.to(data.room).emit("message",{ id: saved._id.toString(), username: saved.username, text: saved.text, room: data.room });
   })
 
   socket.on("startVideoCall",function({room}){
-    socket.broadcast.to(room).emit("incomingCall",{ from: username })
+    socket.broadcast.to(room).emit("incomingCall",{ from: username, room })
   })
 
   socket.on("rejectCall",function({room}){
-    socket.broadcast.to(room).emit("callRejected");
+    socket.broadcast.to(room).emit("callRejected",{ room });
   })
 
   socket.on("acceptCall",function({room}){
-    socket.broadcast.to(room).emit("callAccepted");
+    socket.broadcast.to(room).emit("callAccepted",{ room });
   })
 })
 

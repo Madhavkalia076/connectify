@@ -344,11 +344,30 @@ request — "WhatsApp and Discord are the competition"):**
 - **Pending join requests moved out of the chat view** into a bell icon (badge shows the count)
   that opens a modal — keeps the chat itself uncluttered, per the owner's explicit preference over
   the original inline banner.
-- **Still in progress, picking up next**: live unread-message badges on room names in the sidebar
-  (WhatsApp-style) — the one piece of this pass with real architectural weight, since "live" means
-  the client needs to listen for new messages across *every* room the user belongs to
-  simultaneously (not just whichever one is currently open), which means one shared Socket.io
-  connection app-wide instead of a fresh one per page.
+- **Live unread-message badges** on room names in the sidebar (WhatsApp-style) — the one piece of
+  this pass with real architectural weight. One shared Socket.io connection now lives app-wide
+  (created in `partials/sidebar.ejs`, reused by `chat.ejs` via `window.__socket`) instead of a
+  fresh one per page, and "watches" every room the user can see — not just whichever one is
+  currently open — so a badge can update the instant a message arrives elsewhere, no reload
+  needed. `User` gained a `lastRead` map (room name → timestamp), updated whenever a room is
+  actually opened; unread count per room is just "messages from other people newer than that."
+  Watching (for badges) is kept deliberately separate from the existing presence-tracked join (for
+  the "Online: ..." bar) — a new `watchRoom` socket event joins the broadcast channel without
+  marking the user present, so sitting on the room list doesn't make you falsely appear online
+  everywhere. Unread counts are only computed for rooms the user can actually read — an
+  approval-required room they were never approved for still shows in the sidebar (so they can
+  request access) but deliberately shows no badge, since a count would leak "this private room has
+  activity" to someone not allowed to see why.
+
+  **A real regression this surfaced and fixed**: making one socket listen to every room means it
+  now receives *everything* room-scoped for every room it watches — typing indicators, presence
+  updates, and video-call signaling included, not just chat messages. Every one of those payloads
+  had to start carrying which room it belongs to, and every client-side handler had to start
+  checking "is this actually the room I'm looking at?" before acting on it. Without that fix, a
+  video call started in one room could have popped the incoming-call modal on a completely
+  different room's page. Caught and fixed before shipping, not after — worth remembering as a
+  concrete example of how a seemingly-contained feature (a notification badge) can ripple into
+  parts of the app that look unrelated at first glance.
 - **Logged for a later phase, not started**: 1:1 direct messages by username (Instagram-style) —
   explicitly deferred by the owner until after the room-level features above are done.
 

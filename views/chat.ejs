@@ -278,12 +278,14 @@
         <% } %>
     </div>
 
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
-        integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
-        crossorigin="anonymous"></script>
-
     <script>
-        const socket = io();
+        // window.__socket is created once by partials/sidebar.ejs (which runs earlier in this
+        // same page) and shared here — a page only ever needs one Socket.io connection. Because
+        // that connection is also "watching" every other room the user belongs to (for unread
+        // badges), every handler below has to check data.room before acting: without that, a
+        // background room's typing indicator, presence update, or even video-call signal would
+        // wrongly show up on whichever room's chat page happens to be open.
+        const socket = window.__socket;
         const chatform = document.querySelector("#chatform");
         const messagebox = document.querySelector("#messagebox");
         const messagecontainer = document.querySelector("#message-container");
@@ -296,9 +298,12 @@
         const room = "<%= room %>";
         const myUsername = "<%= username %>";
 
+        // The only join that marks presence (the "Online: ..." bar, the Room Info participant
+        // list) — the sidebar's "watchRoom" joins for every other room deliberately skip that.
         socket.emit("joinroom", { roomId: room });
 
         socket.on("message", function (data) {
+            if (data.room !== room) return; // a background room's message — the sidebar handles badging it
             if (data.type === "image") {
                 renderImageMessage(data.id, data.username, data.fileUrl);
             } else {
@@ -387,7 +392,8 @@
         })
 
         // --- Presence ---
-        socket.on("presence", function (usernames) {
+        socket.on("presence", function ({ roomId, usernames }) {
+            if (roomId !== room) return; // presence for a room we're only watching, not viewing
             const others = usernames.filter(function (name) { return name !== myUsername; });
             if (others.length === 0) {
                 presenceBar.textContent = "Only you are here";
@@ -409,7 +415,8 @@
         })
 
         let hideTypingTimer = null;
-        socket.on("typing", function ({ username: typingUsername }) {
+        socket.on("typing", function ({ username: typingUsername, room: typingRoom }) {
+            if (typingRoom !== room) return; // someone typing in a room we're only watching
             typingIndicator.textContent = typingUsername + " is typing...";
             // Every new "typing" event pushes the auto-hide back out — the indicator only
             // disappears after ~2s with no further typing events from anyone.
@@ -608,8 +615,9 @@
             }
         }
 
-        const handleSignalingMessage = async (message) => {
-            const { type, offer, answer, candidate } = JSON.parse(message);
+        const handleSignalingMessage = async (payload) => {
+            if (payload.room !== room) return; // signaling for a call happening in a different room
+            const { type, offer, answer, candidate } = JSON.parse(payload.message);
             if (type === "offer") handleOffer(offer);
             if (type === "answer") handleAnswer(answer);
             if (type === "candidate" && peerConnection) {
@@ -652,12 +660,14 @@
                 socket.emit("startVideoCall", { room })
             })
 
-        socket.on("incomingCall", function ({ from }) {
+        socket.on("incomingCall", function ({ from, room: callRoom }) {
+            if (callRoom !== room) return; // a call happening in a room we're only watching
             document.querySelector("#incoming-call-text").textContent = `Incoming call from ${from}...`;
             document.querySelector("#incoming-call").classList.remove("hidden");
         })
 
-        socket.on("callAccepted", function () {
+        socket.on("callAccepted", function ({ room: callRoom }) {
+            if (callRoom !== room) return;
             initialize();
             document.querySelector(".videoblock").classList.remove("hidden");
         })
@@ -674,7 +684,8 @@
             socket.emit("rejectCall", { room });
         })
 
-        socket.on("callRejected", function () {
+        socket.on("callRejected", function ({ room: callRoom }) {
+            if (callRoom !== room) return;
             alert("call rejected by the user");
         })
 

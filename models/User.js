@@ -17,6 +17,14 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  // Per-room "last read" timestamps — a Mongoose Map, keyed by room name, valued by when this
+  // user last actually looked at that room. Unread badges are computed by comparing this against
+  // message timestamps: anything newer than lastRead[room] (and not sent by this user) is unread.
+  lastRead: {
+    type: Map,
+    of: Date,
+    default: {},
+  },
 });
 
 module.exports = mongoose.model('User', userSchema);
