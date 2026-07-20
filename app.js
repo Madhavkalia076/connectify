@@ -21,11 +21,15 @@ const indexRouter=require('./routes/indexroute')
 const authRouter=require('./routes/authroute')
 const chatRouter=require('./routes/chatroute')
 const messageRouter=require('./routes/messageroute')
+const dmRouter=require('./routes/dmroute')
+const profileRouter=require('./routes/profileroute')
 const mongoose=require('mongoose');
 const session=require('express-session');
 const { MongoStore }=require('connect-mongo');
 const Message=require('./models/Message');
 const Room=require('./models/Room');
+const Conversation=require('./models/Conversation');
+const { isDmRoomId, getDmParticipants }=require('./lib/dm');
 
 const http=require('http');
 const server=http.createServer(app);
@@ -116,6 +120,11 @@ function broadcastPresence(roomId) {
 // Membership check shared by "joinroom" and "watchRoom" below — both need to confirm the socket's
 // user is actually allowed into this room before letting Socket.io group them into it.
 async function canAccessRoom(roomId, username) {
+  // DM roomIds encode their own membership (the two usernames baked into the string itself), so
+  // there's no document to look up — just check the requester is one of the two people it names.
+  if (isDmRoomId(roomId)) {
+    return getDmParticipants(roomId).includes(username);
+  }
   const room = await Room.findOne({ name: roomId });
   if (!room) return false;
   if (room.requiresApproval && room.createdBy !== username && !room.members.includes(username)) {
@@ -193,6 +202,13 @@ io.on("connection",function(socket){
     // if it's already durably stored. If the DB write fails, nobody sees a message that would've
     // vanished on refresh anyway.
     const saved=await Message.create({ username, roomId: data.room, text: data.text });
+
+    // Bumps the conversation's updatedAt so the DM sidebar list can sort "most recently active
+    // first" — doesn't matter for room chat, which has no equivalent sidebar ordering need.
+    if(isDmRoomId(data.room)){
+      await Conversation.updateOne({ participants: getDmParticipants(data.room) }, { $currentDate: { updatedAt: true } });
+    }
+
     // io.to (not socket.broadcast.to) includes the sender too — with multiple people per room,
     // the client tells "my own message" apart from others by comparing usernames, not by relying
     // on the server to skip the sender. The id lets the client later target this exact message for
@@ -212,6 +228,13 @@ io.on("connection",function(socket){
   socket.on("acceptCall",function({room}){
     socket.broadcast.to(room).emit("callAccepted",{ room });
   })
+
+  // Lets the caller back out of a call before the other side has responded — without this, the
+  // callee's incoming-call popup (and ringtone) would just sit there indefinitely with no signal
+  // that the caller gave up.
+  socket.on("cancelCall",function({room}){
+    socket.broadcast.to(room).emit("callCancelled",{ room });
+  })
 })
 
 app.set('view engine','ejs');
@@ -228,5 +251,7 @@ app.use('/',indexRouter);
 app.use('/',authRouter);
 app.use('/',chatRouter);
 app.use('/',messageRouter);
+app.use('/',dmRouter);
+app.use('/',profileRouter);
 
 server.listen(process.env.PORT || 3000);

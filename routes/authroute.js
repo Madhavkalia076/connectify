@@ -28,7 +28,12 @@ router.post('/signup', async (req, res) => {
   // log the user in immediately after signup by writing to their session
   req.session.userId = user._id.toString();
   req.session.username = user.username;
+  // Kept in the session (not looked up from the DB on every request) so the requireProfile
+  // middleware can gate access to chat without an extra database round-trip per page load.
+  req.session.profileComplete = user.profileComplete;
 
+  // A brand-new signup always has profileComplete: false — requireProfile on /chat will catch
+  // that and redirect to /profile/setup, so there's no need to branch on it here too.
   res.redirect('/chat');
 });
 
@@ -53,6 +58,7 @@ router.post('/login', async (req, res) => {
 
   req.session.userId = user._id.toString();
   req.session.username = user.username;
+  req.session.profileComplete = user.profileComplete;
 
   res.redirect('/chat');
 });

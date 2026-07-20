@@ -368,8 +368,64 @@ request — "WhatsApp and Discord are the competition"):**
   different room's page. Caught and fixed before shipping, not after — worth remembering as a
   concrete example of how a seemingly-contained feature (a notification badge) can ripple into
   parts of the app that look unrelated at first glance.
-- **Logged for a later phase, not started**: 1:1 direct messages by username (Instagram-style) —
-  explicitly deferred by the owner until after the room-level features above are done.
+- **1:1 direct messages by username (Instagram-style)** — built after the room-level features
+  above, as planned. A DM thread reuses almost all of the room chat infrastructure rather than
+  duplicating it: a DM's `roomId` is derived, not stored (`"dm:" + [usernameA, usernameB].sort()`),
+  so messages, typing, presence, unread badges, image sharing, and video calling all work
+  unchanged — they only ever operate on "a roomId two people are grouped into," and never cared
+  whether that string was a real room name. A small `Conversation` model exists purely so a thread
+  can be listed and opened before either person has sent a first message. Starting a new DM is a
+  live username search (debounced `fetch` against `GET /dm/search`) from a sidebar button, closer
+  to Instagram's flow than the plain-form pattern used for creating rooms.
+
+  Two real bugs were caught and fixed during this pass, both worth remembering:
+  - **DM online/offline status was a page-load snapshot, never live-updated** — if the other
+    person connected *after* your page loaded (an ordinary thing to happen), you'd see "Offline"
+    for someone actually online, with nothing to ever correct it. Fixed by listening to the same
+    `presence` socket event room chat already broadcasts, filtered to the DM's `roomId`.
+  - **The sidebar's mobile hamburger button never actually worked.** `partials/sidebar.ejs`'s
+    script runs *before* `#sidebar-open` exists in the DOM (that button lives in
+    `chat.ejs`/`dm.ejs`'s own markup, rendered later in the same page), so a direct
+    `document.getElementById('sidebar-open')` always returned `null` — silently, because the code
+    used `?.` on the listener attachment. Fixed with event delegation on `document` instead,
+    which doesn't care when the target element actually appears in the DOM. Caught by the owner
+    testing on a narrow/mobile-width window, since desktop testing never exercises the
+    mobile-only hamburger at all.
+
+**Video call UX polish**, raised by the owner after using the app for real: the caller had no
+feedback that a call was ringing (leading to repeated clicks re-broadcasting the invite), the
+callee had no audible ringtone, there was no way to cancel an outstanding call, the hangup icon
+looked poor, and — the actual bug underneath all of it — the full-screen video overlay didn't
+actually cover the sidebar. Fixed together:
+- **Caller-side "Calling..." overlay** with a Cancel button, guarding the video-call button against
+  repeated clicks while a call is already ringing or connected. A new `cancelCall` → `callCancelled`
+  socket event pair lets the caller back out cleanly, auto-dismissing the callee's incoming-call
+  popup (and ringtone) instead of leaving it hanging with no signal.
+- **Synthesized ringtone** via the Web Audio API (a repeating two-tone beep) instead of an audio
+  file — no asset to source, host, or license.
+- **Standard "hang up" icon** — a phone-handset glyph rotated 135°, the same visual convention
+  WhatsApp/Zoom/Meet/Material Design all use, replacing the previous custom icon.
+- **WhatsApp-style minimize**: the call can shrink to a small floating box in the corner (camera/mic
+  toggles hidden at that size, just hangup + click-to-restore) instead of only ever being
+  full-screen or fully hidden, so a call can keep running while browsing the rest of the app.
+- **The actual full-screen bug**: the video overlay (and the incoming/outgoing call modals) were
+  nested inside the main content pane's flex layout instead of being direct children of `<body>`.
+  Moved them out — a general lesson worth remembering: full-viewport overlay elements should sit at
+  the top of the DOM, not nested inside a page's own layout containers, to avoid any chance of a
+  sibling's CSS interfering with their coverage.
+
+**Profile system**, the owner's other explicit request: mandatory setup after signup (display name,
+bio/status, profile picture), a public profile view for any user, and an edit page for updating it
+later. `User` gained `displayName`, `bio`, `profilePicture`, and a `profileComplete` flag; a new
+`requireProfile` middleware (checked from the session, not a database hit per request) redirects to
+`/profile/setup` until that flag is set, applied to every real chat/DM entry point. Profile links
+are now clickable from the sidebar's own-user footer, a DM's header, and each name in a room's
+participants list. Explicitly **not** built: allowing `username` itself to change — it's used as a
+raw string reference throughout the schema (DM `roomId`s are *derived* from it, room membership
+arrays store it directly, every message references it), so `displayName` is deliberately the one
+mutable "who you are" field, keeping `username` acting like a stable primary key. Also noted as a
+real gap, not yet fixed: the "New Message" search only matches `username`, not `displayName` — a
+person who only knows someone's display name currently can't find them that way.
 
 ---
 

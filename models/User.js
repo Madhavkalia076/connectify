@@ -25,6 +25,27 @@ const userSchema = new mongoose.Schema({
     of: Date,
     default: {},
   },
+  // Profile fields — separate from `username`, which stays the permanent, unique login identifier
+  // and is never shown as "who this really is" once a display name exists. All optional at the
+  // schema level (a document can exist without them mid-signup); `profileComplete` is what actually
+  // enforces "must set these before using the app," not a `required: true` on the fields themselves.
+  displayName: {
+    type: String,
+    trim: true,
+    maxlength: 30,
+  },
+  bio: {
+    type: String,
+    trim: true,
+    maxlength: 150,
+  },
+  profilePicture: {
+    type: String, // /uploads/<filename> — same pattern as room images and message attachments
+  },
+  profileComplete: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 module.exports = mongoose.model('User', userSchema);

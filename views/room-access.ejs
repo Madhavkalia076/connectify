@@ -7,7 +7,7 @@
 
 <body class="h-dvh overflow-hidden bg-slate-100 dark:bg-slate-900 font-sans text-gray-900 dark:text-gray-100 flex">
 
-  <%- include('partials/sidebar', { rooms, username, activeRoom, roomError: null }) %>
+  <%- include('partials/sidebar', { rooms, conversations, unreadCounts, dmPartnerProfiles, myDisplayName, myProfilePicture, username, activeRoom, roomError: null }) %>
 
   <div class="flex-1 flex flex-col min-w-0">
     <div class="md:hidden flex items-center gap-2 px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">

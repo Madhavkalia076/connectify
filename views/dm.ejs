@@ -2,11 +2,10 @@
 <html lang="en">
 
 <head>
-    <%- include('partials/head', { title: '#' + room + ' — Connectify' }) %>
+    <%- include('partials/head', { title: partnerUsername + ' — Connectify' }) %>
     <style>
-        /* Kept as scoped CSS rather than Tailwind utilities — the video call UI relies on
-           JS-toggled state classes (.smallFrame, .mic-muted, .camera-off) layered on top of
-           fixed positioning that's easier to reason about here than composed inline. */
+        /* Identical to chat.ejs's video call styling — DMs use the exact same WebRTC flow, just
+           between two people who already know each other's usernames instead of a room's members. */
         #videos {
             display: grid;
             grid-template-columns: 1fr;
@@ -94,11 +93,8 @@
             }
         }
 
-        /* WhatsApp-style minimized call: shrinks the whole overlay down to a small floating box
-           instead of hiding it — the call keeps running, you can browse the rest of the app while
-           it continues in the corner. !important is deliberate here: it's overriding Tailwind
-           utility classes (w-full h-dvh) applied directly in the HTML, and this is the one state
-           where that override is intentional, not accidental specificity-fighting. */
+        /* WhatsApp-style minimized call — see chat.ejs's identical block for the full comment on
+           why !important is used here deliberately. */
         .videoblock.minimized {
             top: auto !important;
             left: auto !important;
@@ -138,9 +134,6 @@
             width: 14px;
         }
 
-        /* Only hangup and restore stay reachable in the mini view — camera/mic toggles would be
-           fiddly targets at this size, and a call this small is meant for "glance at it while I do
-           something else," not fine controls. */
         .videoblock.minimized #cameraButton,
         .videoblock.minimized #micButton {
             display: none;
@@ -150,12 +143,10 @@
 
 <body class="h-dvh overflow-hidden bg-slate-100 dark:bg-slate-900 font-sans text-gray-900 dark:text-gray-100 flex">
 
-    <%- include('partials/sidebar', { rooms, conversations, unreadCounts, dmPartnerProfiles, myDisplayName, myProfilePicture, username, activeRoom, roomError: null }) %>
+    <%- include('partials/sidebar', { rooms, conversations, unreadCounts, dmPartnerProfiles, myDisplayName, myProfilePicture, username, activeRoom: null, activeDm: partnerUsername, activeDmRoomId: roomId, roomError: null }) %>
 
-    <!-- Video call overlay — a direct child of <body>, deliberately *not* nested inside the main
-         content pane below. Fixed-position elements cover the full viewport by default, but that
-         guarantee only holds without interference from ancestor layout; keeping this at the top
-         level avoids any chance of the sidebar's own layout affecting it. -->
+    <!-- Video call overlay — direct child of <body>, not nested inside the main content pane, so
+         it always covers the full viewport regardless of the sidebar's own layout. -->
     <div class="fixed videoblock hidden z-[222] w-full h-dvh" id="video-call-overlay">
         <div id="videos">
             <video class="video-player" id="localVideo" autoplay muted playsinline></video>
@@ -177,9 +168,6 @@
             </div>
 
             <div class="control-container" id="hangup" title="End call">
-                <!-- Classic "hang up" symbol: a phone-handset icon rotated 135° — the same visual
-                     convention WhatsApp/Zoom/Meet/Material Design all use, rather than the busier
-                     custom glyph this used to be. -->
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" style="transform: rotate(135deg);">
                     <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
                 </svg>
@@ -195,7 +183,7 @@
         </div>
     </div>
 
-    <!-- Incoming call modal — also a direct child of <body>, same reasoning as above -->
+    <!-- Incoming call modal -->
     <div id="incoming-call"
         class="fixed hidden z-[222] w-full h-dvh bg-black/60 flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-xl text-center">
@@ -226,10 +214,20 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
                     </svg>
                 </button>
-                <div class="w-9 h-9 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 font-semibold">
-                    #
-                </div>
-                <h1 class="font-semibold truncate"><%= room %></h1>
+                <% var partnerLabel = partnerDisplayName || partnerUsername; %>
+                <a href="/profile/<%= partnerUsername %>" class="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity" title="View profile">
+                    <% if (partnerProfilePicture) { %>
+                        <img src="<%= partnerProfilePicture %>" alt="" class="w-9 h-9 rounded-full object-cover shrink-0">
+                    <% } else { %>
+                        <div class="w-9 h-9 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 font-semibold">
+                            <%= partnerLabel.slice(0, 1).toUpperCase() %>
+                        </div>
+                    <% } %>
+                    <div class="min-w-0">
+                        <h1 class="font-semibold truncate"><%= partnerLabel %></h1>
+                        <p id="dm-status" class="text-xs text-gray-400 dark:text-gray-500"><%= partnerOnline ? 'Online' : 'Offline' %></p>
+                    </div>
+                </a>
             </div>
             <div class="flex items-center gap-2 shrink-0">
                 <button id="video-call-btn" title="Start a video call"
@@ -238,50 +236,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2Z" />
                     </svg>
                 </button>
-                <button id="room-info-btn" title="Room info"
-                    class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-                    </svg>
-                </button>
-                <% if (isOwner && requiresApproval) { %>
-                    <button id="pending-requests-btn" title="Pending join requests"
-                        class="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
-                        </svg>
-                        <% if (pendingRequests.length > 0) { %>
-                            <span class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] leading-none rounded-full w-4 h-4 flex items-center justify-center">
-                                <%= pendingRequests.length %>
-                            </span>
-                        <% } %>
-                    </button>
-                <% } %>
-                <% if (isOwner) { %>
-                    <form method="POST" action="/chat/<%= room %>/delete"
-                        onsubmit="return confirm('Delete #<%= room %> and all its messages? This cannot be undone.');">
-                        <button type="submit" title="Delete room"
-                            class="p-2 rounded-lg bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/25 transition-colors">
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                            </svg>
-                        </button>
-                    </form>
-                <% } else if (requiresApproval) { %>
-                    <form method="POST" action="/chat/<%= room %>/leave"
-                        onsubmit="return confirm('Leave #<%= room %>? You\'ll need the owner\'s approval again to rejoin.');">
-                        <button type="submit" title="Leave room"
-                            class="p-2 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors">
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H3" />
-                            </svg>
-                        </button>
-                    </form>
-                <% } %>
             </div>
         </header>
-
-        <div id="presence-bar" class="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 py-1 text-xs text-gray-500 dark:text-gray-400"></div>
 
         <main class="flex-1 p-4 overflow-y-auto relative" id="message-container">
             <% if (messages.length === 0) { %>
@@ -342,39 +298,30 @@
 
         <video id="local-video" class="hidden" autoplay></video>
         <video id="remote-video" class="hidden" autoplay></video>
-
-        <%- include('partials/room-info-modal', { room, isOwner, imageUrl, description, participants, requiresApproval, roomOwner }) %>
-        <% if (isOwner && requiresApproval) { %>
-            <%- include('partials/pending-requests-modal', { room, pendingRequests }) %>
-        <% } %>
     </div>
 
     <script>
         // window.__socket is created once by partials/sidebar.ejs (which runs earlier in this
-        // same page) and shared here — a page only ever needs one Socket.io connection. Because
-        // that connection is also "watching" every other room the user belongs to (for unread
-        // badges), every handler below has to check data.room before acting: without that, a
-        // background room's typing indicator, presence update, or even video-call signal would
-        // wrongly show up on whichever room's chat page happens to be open.
+        // same page) and shared here, exactly like chat.ejs — see the comment there for why every
+        // handler below has to check data.room before acting.
         const socket = window.__socket;
         const chatform = document.querySelector("#chatform");
         const messagebox = document.querySelector("#messagebox");
         const messagecontainer = document.querySelector("#message-container");
-        const presenceBar = document.querySelector("#presence-bar");
         const typingIndicator = document.querySelector("#typing-indicator");
 
-        // The room name and our own username are baked in server-side (from the URL and the
-        // session) — unlike the old random-pairing flow, there's no "waiting to be matched"
-        // step, we just join the room we're already viewing.
-        const room = "<%= room %>";
+        // Unlike room chat, "room" here is the synthetic DM id ("dm:alice:bob"), not a name a
+        // human picked — everything downstream (Socket.io rooms, Message.roomId, presence) treats
+        // it exactly the same as a real room string, which is the whole point of building DMs this
+        // way instead of as a separate system.
+        const room = "<%= roomId %>";
         const myUsername = "<%= username %>";
+        const partnerUsername = "<%= partnerUsername %>";
 
-        // The only join that marks presence (the "Online: ..." bar, the Room Info participant
-        // list) — the sidebar's "watchRoom" joins for every other room deliberately skip that.
         socket.emit("joinroom", { roomId: room });
 
         socket.on("message", function (data) {
-            if (data.room !== room) return; // a background room's message — the sidebar handles badging it
+            if (data.room !== room) return;
             if (data.type === "image") {
                 renderImageMessage(data.id, data.username, data.fileUrl);
             } else {
@@ -382,11 +329,6 @@
             }
         })
 
-        // --- Message deletion ---
-        // Event delegation: the delete buttons live inside messages that get created both by
-        // the server (page load) and dynamically by these render functions (live messages), so
-        // one listener on the container catches clicks from either source instead of needing
-        // to re-attach a listener every time a new message is rendered.
         messagecontainer.addEventListener("click", async function (event) {
             const forMeBtn = event.target.closest(".delete-for-me");
             const forEveryoneBtn = event.target.closest(".delete-for-everyone");
@@ -395,8 +337,6 @@
                 const id = forMeBtn.dataset.id;
                 const response = await fetch(`/messages/${id}/delete-for-me`, { method: "POST" });
                 if (response.ok) {
-                    // Only *my* view needs updating — nobody else is told, since this can never
-                    // affect what anyone else sees.
                     document.querySelector(`[data-id="${id}"]`)?.remove();
                 }
             }
@@ -409,18 +349,12 @@
                     const body = await response.json().catch(function () { return {}; });
                     alert(body.error || "Couldn't delete this message.");
                 }
-                // No local update here — the server broadcasts "messageDeleted" back to the
-                // whole room (sender included), and that's what actually swaps in the
-                // placeholder. Same "wait for the server to confirm" pattern as sending a
-                // message in the first place.
             }
         })
 
         socket.on("messageDeleted", function ({ id }) {
             const row = document.querySelector(`[data-id="${id}"]`);
             if (!row) return;
-            // Only swaps out .message-body — leaves the sender's username label (a sibling
-            // element, not a child of this wrapper) untouched.
             const body = row.querySelector(".message-body");
             body.innerHTML = '<div class="bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-gray-500 italic p-3 rounded-2xl text-sm">This message was deleted</div>';
         })
@@ -431,16 +365,9 @@
             if (!text) return;
             socket.emit("message", { room: room, text: text });
             messagebox.value = "";
-            // No local optimistic render here — the server broadcasts the message back to
-            // everyone in the room, sender included, once it's saved to the database. That
-            // keeps "what's on screen" and "what's actually persisted" from ever disagreeing.
         })
 
-        // --- Image upload ---
-        // Goes over a normal HTTP POST, not the socket connection — file uploads need
-        // multipart/form-data, which isn't something Socket.io sends. Once the server has
-        // saved it, it broadcasts a "message" event the same way text messages do, which is
-        // what actually makes the image appear for everyone (including the uploader).
+        // Same HTTP-upload pattern as room chat — just posts to the DM-specific upload route.
         const imageInput = document.querySelector("#imageinput");
         imageInput.addEventListener("change", async function () {
             const file = imageInput.files[0];
@@ -449,7 +376,7 @@
             const formData = new FormData();
             formData.append("image", file);
 
-            const response = await fetch(`/chat/${room}/upload`, {
+            const response = await fetch(`/dm/${partnerUsername}/upload`, {
                 method: "POST",
                 body: formData,
             });
@@ -459,26 +386,24 @@
                 alert(body.error || "Upload failed.");
             }
 
-            imageInput.value = ""; // reset so selecting the same file again still fires "change"
+            imageInput.value = "";
         })
 
-        // --- Presence ---
+        // No presence *bar* in a 1:1 DM — "Online"/"Offline" up in the header covers it — but it
+        // does need to update live off the same "presence" event room chat uses. Without this, the
+        // header's status is only ever a snapshot from the moment the page loaded: if the other
+        // person connects *after* that (a very normal thing to happen), you'd be stuck seeing
+        // "Offline" for someone who's actually online, with nothing to ever correct it.
+        const dmStatus = document.querySelector("#dm-status");
         socket.on("presence", function ({ roomId, usernames }) {
-            if (roomId !== room) return; // presence for a room we're only watching, not viewing
-            const others = usernames.filter(function (name) { return name !== myUsername; });
-            if (others.length === 0) {
-                presenceBar.textContent = "Only you are here";
-            } else {
-                presenceBar.textContent = "Online: " + usernames.join(", ");
-            }
+            if (roomId !== room) return;
+            const partnerIsOnline = usernames.includes(partnerUsername);
+            dmStatus.textContent = partnerIsOnline ? "Online" : "Offline";
         })
 
-        // --- Typing indicator ---
-        // Debounced so a fast typist doesn't fire a socket event on every single keystroke —
-        // this only actually sends once per 500ms of continued typing, not once per keypress.
         let typingDebounceTimer = null;
         messagebox.addEventListener("input", function () {
-            if (typingDebounceTimer) return; // already have one queued, skip this keystroke
+            if (typingDebounceTimer) return;
             socket.emit("typing", { room: room });
             typingDebounceTimer = setTimeout(function () {
                 typingDebounceTimer = null;
@@ -487,18 +412,14 @@
 
         let hideTypingTimer = null;
         socket.on("typing", function ({ username: typingUsername, room: typingRoom }) {
-            if (typingRoom !== room) return; // someone typing in a room we're only watching
+            if (typingRoom !== room) return;
             typingIndicator.textContent = typingUsername + " is typing...";
-            // Every new "typing" event pushes the auto-hide back out — the indicator only
-            // disappears after ~2s with no further typing events from anyone.
             clearTimeout(hideTypingTimer);
             hideTypingTimer = setTimeout(function () {
                 typingIndicator.textContent = "";
             }, 2000);
         })
 
-        // Shared by both render functions below — the delete-controls row is identical either
-        // way, only the bubble/image content above it differs.
         function buildDeleteControls(id, isMine) {
             const controls = document.createElement('div');
             controls.classList.add('flex', 'gap-2', 'mt-1', isMine ? 'justify-end' : 'justify-start');
@@ -593,14 +514,10 @@
             messagecontainer.scrollTop = messagecontainer.scrollHeight;
         }
 
-        // scroll to the bottom of the server-rendered history on first load
         messagecontainer.scrollTop = messagecontainer.scrollHeight;
 
-        // WEBRTC START
-        // Known limitation: this is still a 1-on-1 signaling flow (RTCPeerConnection only
-        // ever talks to one peer). In a room with more than 2 people, "Video Call" broadcasts
-        // to everyone in the room and whoever accepts first connects — true group video
-        // calling would need per-target signaling (or an SFU server) and isn't built here.
+        // WEBRTC — identical to chat.ejs. See that file's comments for the full explanation; this
+        // is the same 1-on-1 signaling flow, which fits a DM even more naturally than a room.
         let localStream;
         let remoteStream;
         let peerConnection;
@@ -612,11 +529,8 @@
         };
 
         // --- Ringtone ---
-        // Synthesized with the Web Audio API instead of an audio file — no asset to source, host,
-        // or worry about licensing for a two-tone "ring" beep. AudioContext can only start once the
-        // page has already had some user interaction (a browser autoplay-policy restriction); by
-        // the time anyone receives a call they've long since clicked something on the page, so this
-        // never actually hits that restriction in practice.
+        // Same synthesized approach as chat.ejs — see that file's comment for why this doesn't
+        // need an audio asset or hit browser autoplay restrictions in practice.
         let ringtoneCtx = null;
         let ringtoneTimer = null;
 
@@ -712,8 +626,6 @@
 
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    console.log("Sending Ice Candidates");
-
                     socket.emit("signalingMessage", {
                         room,
                         message: JSON.stringify({
@@ -730,7 +642,7 @@
         }
 
         const handleSignalingMessage = async (payload) => {
-            if (payload.room !== room) return; // signaling for a call happening in a different room
+            if (payload.room !== room) return;
             const { type, offer, answer, candidate } = JSON.parse(payload.message);
             if (type === "offer") handleOffer(offer);
             if (type === "answer") handleAnswer(answer);
@@ -768,14 +680,8 @@
             }
         }
 
-
         document.querySelector("#video-call-btn")
             .addEventListener("click", function () {
-                // Guards against the exact problem this was built to fix: with no feedback after
-                // clicking, a caller who couldn't tell anything had happened would just click
-                // again — and again — each click re-broadcasting a fresh "incoming call" to the
-                // other side. Once a call is already ringing or connected, further clicks do
-                // nothing instead of piling up more invites.
                 if (isCalling || inCall) return;
                 isCalling = true;
                 document.querySelector("#outgoing-call-text").textContent = "Calling...";
@@ -791,7 +697,7 @@
             })
 
         socket.on("incomingCall", function ({ from, room: callRoom }) {
-            if (callRoom !== room) return; // a call happening in a room we're only watching
+            if (callRoom !== room) return;
             document.querySelector("#incoming-call-text").textContent = `Incoming call from ${from}...`;
             document.querySelector("#incoming-call").classList.remove("hidden");
             playRingtone();
@@ -822,8 +728,6 @@
         socket.on("callRejected", function ({ room: callRoom }) {
             if (callRoom !== room) return;
             isCalling = false;
-            // Reuses the same "calling" overlay to show the outcome briefly instead of a jarring
-            // blocking alert() — auto-dismisses on its own a moment later.
             document.querySelector("#outgoing-call-text").textContent = "Call declined";
             setTimeout(function () {
                 document.querySelector("#outgoing-call").classList.add("hidden");
@@ -831,16 +735,12 @@
         })
 
         socket.on("callCancelled", function ({ room: callRoom }) {
-            if (callRoom !== room) return; // the caller gave up before we responded
+            if (callRoom !== room) return;
             stopRingtone();
             document.querySelector("#incoming-call").classList.add("hidden");
         })
 
-        // --- Minimize / restore ---
-        // The call keeps running either way — this only changes how much screen it takes up, same
-        // as WhatsApp's picture-in-picture call view. stopPropagation on the buttons matters here:
-        // without it, clicking hangup or minimize while already minimized would also trigger the
-        // "click the box to restore" handler on the container underneath.
+        // --- Minimize / restore --- (see chat.ejs's identical block for the full comment)
         const videoOverlay = document.querySelector("#video-call-overlay");
 
         document.querySelector("#hangup")
@@ -868,7 +768,6 @@
 
         document.querySelector("#micButton")
             .addEventListener("click", function () {
-
                 toggleMute();
             })
 
@@ -884,7 +783,6 @@
                 } else {
                     micButton.classList.remove("mic-muted");
                 }
-
             }
         }
 
@@ -910,7 +808,7 @@
                 localStream.getTracks().forEach(track => track.stop());
 
                 document.querySelector(".videoblock").classList.add("hidden");
-                document.querySelector(".videoblock").classList.remove("minimized"); // next call starts full-screen, not still shrunk from this one
+                document.querySelector(".videoblock").classList.remove("minimized");
                 socket.emit("signalingMessage", { room, message: JSON.stringify({ type: "hangup" }) });
                 inCall = false;
             }

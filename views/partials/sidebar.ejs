@@ -27,13 +27,22 @@
     </div>
 
     <div class="px-3 pt-3 flex flex-col gap-2">
-        <button id="create-room-btn"
-            class="w-full flex items-center justify-center gap-1.5 bg-indigo-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-indigo-700 transition-colors">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Create Room
-        </button>
+        <div class="flex gap-2">
+            <button id="create-room-btn"
+                class="flex-1 flex items-center justify-center gap-1.5 bg-indigo-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Room
+            </button>
+            <button id="new-message-btn" title="New message"
+                class="flex-1 flex items-center justify-center gap-1.5 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-200 text-sm font-medium py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5h8m-8 3h4.5m4.5 5.25-3.75-3.75H6a2.25 2.25 0 0 1-2.25-2.25v-7.5A2.25 2.25 0 0 1 6 3h12a2.25 2.25 0 0 1 2.25 2.25v7.5A2.25 2.25 0 0 1 18 15h-1.5v4.5Z" />
+                </svg>
+                Message
+            </button>
+        </div>
         <div class="relative">
             <svg class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -43,41 +52,86 @@
         </div>
     </div>
 
-    <nav id="room-list" class="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-0.5">
-        <% if (rooms.length === 0) { %>
-            <p class="text-xs text-gray-400 dark:text-gray-500 text-center mt-4">No rooms yet</p>
-        <% } %>
-        <% rooms.forEach(function(room) { %>
-            <% var isActiveRoom = typeof activeRoom !== 'undefined' && activeRoom === room.name; %>
-            <% var unreadCount = (typeof unreadCounts !== 'undefined' && unreadCounts[room.name]) || 0; %>
-            <a href="/chat/<%= room.name %>" data-room-name="<%= room.name.toLowerCase() %>"
-                class="room-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm truncate transition-colors <%= isActiveRoom ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700' %>">
-                <% if (room.imageUrl) { %>
-                    <img src="<%= room.imageUrl %>" alt="" class="w-6 h-6 rounded-full object-cover shrink-0">
-                <% } else { %>
-                    <span class="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-700 shrink-0 flex items-center justify-center text-gray-400 text-xs font-semibold">
-                        <%= room.name.slice(0, 1).toUpperCase() %>
-                    </span>
+    <nav id="room-list" class="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
+        <div>
+            <p class="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide px-3 mb-1">Rooms</p>
+            <div class="flex flex-col gap-0.5">
+                <% if (rooms.length === 0) { %>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 text-center mt-2">No rooms yet</p>
                 <% } %>
-                <span class="truncate flex-1"><%= room.name %></span>
-                <% if (room.requiresApproval) { %>
-                    <svg class="w-3.5 h-3.5 shrink-0 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                    </svg>
+                <% rooms.forEach(function(room) { %>
+                    <% var isActiveRoom = typeof activeRoom !== 'undefined' && activeRoom === room.name; %>
+                    <% var unreadCount = (typeof unreadCounts !== 'undefined' && unreadCounts[room.name]) || 0; %>
+                    <a href="/chat/<%= room.name %>" data-room-name="<%= room.name.toLowerCase() %>"
+                        class="room-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm truncate transition-colors <%= isActiveRoom ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700' %>">
+                        <% if (room.imageUrl) { %>
+                            <img src="<%= room.imageUrl %>" alt="" class="w-6 h-6 rounded-full object-cover shrink-0">
+                        <% } else { %>
+                            <span class="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-700 shrink-0 flex items-center justify-center text-gray-400 text-xs font-semibold">
+                                <%= room.name.slice(0, 1).toUpperCase() %>
+                            </span>
+                        <% } %>
+                        <span class="truncate flex-1"><%= room.name %></span>
+                        <% if (room.requiresApproval) { %>
+                            <svg class="w-3.5 h-3.5 shrink-0 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                            </svg>
+                        <% } %>
+                        <span class="unread-badge bg-indigo-600 text-white text-[10px] font-semibold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center shrink-0 <%= (unreadCount > 0 && !isActiveRoom) ? '' : 'hidden' %>">
+                            <%= unreadCount > 99 ? '99+' : unreadCount %>
+                        </span>
+                    </a>
+                <% }) %>
+            </div>
+        </div>
+
+        <div>
+            <p class="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide px-3 mb-1">Direct Messages</p>
+            <div class="flex flex-col gap-0.5">
+                <% if (conversations.length === 0) { %>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 text-center mt-2">No conversations yet</p>
                 <% } %>
-                <span class="unread-badge bg-indigo-600 text-white text-[10px] font-semibold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center shrink-0 <%= (unreadCount > 0 && !isActiveRoom) ? '' : 'hidden' %>">
-                    <%= unreadCount > 99 ? '99+' : unreadCount %>
-                </span>
-            </a>
-        <% }) %>
+                <% conversations.forEach(function(conv) { %>
+                    <% var partner = conv.participants.find(function(p) { return p !== username; }); %>
+                    <% var partnerProfile = (typeof dmPartnerProfiles !== 'undefined' && dmPartnerProfiles[partner]) || {}; %>
+                    <% var partnerLabel = partnerProfile.displayName || partner; %>
+                    <% var dmRoomId = ['dm', conv.participants.slice().sort()[0], conv.participants.slice().sort()[1]].join(':'); %>
+                    <% var isActiveDm = typeof activeDm !== 'undefined' && activeDm === partner; %>
+                    <% var dmUnreadCount = (typeof unreadCounts !== 'undefined' && unreadCounts[dmRoomId]) || 0; %>
+                    <a href="/dm/<%= partner %>" data-room-name="<%= dmRoomId.toLowerCase() %>"
+                        class="room-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm truncate transition-colors <%= isActiveDm ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700' %>">
+                        <% if (partnerProfile.profilePicture) { %>
+                            <img src="<%= partnerProfile.profilePicture %>" alt="" class="w-6 h-6 rounded-full object-cover shrink-0">
+                        <% } else { %>
+                            <span class="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-700 shrink-0 flex items-center justify-center text-gray-400 text-xs font-semibold">
+                                <%= partnerLabel.slice(0, 1).toUpperCase() %>
+                            </span>
+                        <% } %>
+                        <span class="truncate flex-1"><%= partnerLabel %></span>
+                        <span class="unread-badge bg-indigo-600 text-white text-[10px] font-semibold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center shrink-0 <%= (dmUnreadCount > 0 && !isActiveDm) ? '' : 'hidden' %>">
+                            <%= dmUnreadCount > 99 ? '99+' : dmUnreadCount %>
+                        </span>
+                    </a>
+                <% }) %>
+            </div>
+        </div>
+
         <p id="room-search-empty" class="hidden text-xs text-gray-400 dark:text-gray-500 text-center mt-4">No rooms match "<span id="room-search-empty-query"></span>"</p>
     </nav>
 
     <div class="border-t border-gray-200 dark:border-slate-700 px-3 py-3 flex items-center gap-2">
-        <div class="w-8 h-8 rounded-full bg-indigo-600 text-white text-xs font-semibold flex items-center justify-center shrink-0">
-            <%= username.slice(0, 2).toUpperCase() %>
-        </div>
-        <span class="text-sm font-medium truncate flex-1"><%= username %></span>
+        <% var myPicture = typeof myProfilePicture !== 'undefined' ? myProfilePicture : null; %>
+        <% var myLabel = (typeof myDisplayName !== 'undefined' && myDisplayName) ? myDisplayName : username; %>
+        <a href="/profile/<%= username %>" class="flex items-center gap-2 min-w-0 flex-1 hover:opacity-80 transition-opacity" title="View your profile">
+            <% if (myPicture) { %>
+                <img src="<%= myPicture %>" alt="" class="w-8 h-8 rounded-full object-cover shrink-0">
+            <% } else { %>
+                <div class="w-8 h-8 rounded-full bg-indigo-600 text-white text-xs font-semibold flex items-center justify-center shrink-0">
+                    <%= myLabel.slice(0, 2).toUpperCase() %>
+                </div>
+            <% } %>
+            <span class="text-sm font-medium truncate"><%= myLabel %></span>
+        </a>
         <%- include('theme-toggle') %>
         <form method="POST" action="/logout">
             <button type="submit" title="Log out" class="p-2 rounded-md text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-slate-700 transition-colors">
@@ -123,6 +177,23 @@
     </div>
 </div>
 
+<!-- New Message modal — live username search, no library, just fetch + a debounced input listener -->
+<div id="new-message-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold text-lg">New message</h2>
+            <button id="new-message-cancel" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <input type="text" id="user-search-input" placeholder="Search by username" autocomplete="off"
+            class="w-full border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+        <div id="user-search-results" class="mt-2 flex flex-col gap-0.5 max-h-60 overflow-y-auto"></div>
+    </div>
+</div>
+
 <script>
     (function () {
         // Created once per page load, reused by chat.ejs's own script (which runs later in the
@@ -130,22 +201,40 @@
         window.__socket = window.__socket || io();
         const socket = window.__socket;
         const myUsername = "<%= username %>";
-        const activeRoomName = <%- (typeof activeRoom !== 'undefined' && activeRoom) ? JSON.stringify(activeRoom) : 'null' %>;
+        <%
+            // EJS-side (server-rendered) id of whatever's actively open, if anything — used below
+            // to decide which rooms/DMs to skip in the "watch everything else" loop, and echoed
+            // into the client-side activeRoomName constant for the "message" filter further down.
+            var activeId = (typeof activeRoom !== 'undefined' && activeRoom) ? activeRoom
+                : (typeof activeDmRoomId !== 'undefined' && activeDmRoomId) ? activeDmRoomId
+                : null;
+        %>
+        // Whichever room OR DM thread is actively open right now, if any — chat.ejs/dm.ejs's own
+        // script handles rendering messages for this one; everything else is "watched" purely for
+        // badge purposes below.
+        const activeRoomName = <%- JSON.stringify(activeId) %>;
 
-        // "Watch" every room this user can see (except whichever one is actively open — chat.ejs
-        // handles that one's real, presence-tracked join) purely so this connection receives live
-        // "message" events for all of them, which is what makes sidebar unread badges update
-        // without needing a page reload. The server re-checks membership per room regardless of
-        // what's rendered here, so this can't grant access beyond what's actually allowed.
+        // "Watch" every room and DM thread this user can see (except whichever is actively open —
+        // chat.ejs/dm.ejs handles that one's real, presence-tracked join) purely so this connection
+        // receives live "message" events for all of them, which is what makes sidebar unread badges
+        // update without needing a page reload. The server re-checks membership per room regardless
+        // of what's rendered here, so this can't grant access beyond what's actually allowed.
         <% rooms.forEach(function(r) { %>
-        <% if (r.name !== activeRoom) { %>
+        <% if (r.name !== activeId) { %>
         socket.emit("watchRoom", { roomId: <%- JSON.stringify(r.name) %> });
+        <% } %>
+        <% }) %>
+        <% conversations.forEach(function(conv) { %>
+        <% var sortedParticipants = conv.participants.slice().sort(); %>
+        <% var convRoomId = 'dm:' + sortedParticipants[0] + ':' + sortedParticipants[1]; %>
+        <% if (convRoomId !== activeId) { %>
+        socket.emit("watchRoom", { roomId: <%- JSON.stringify(convRoomId) %> });
         <% } %>
         <% }) %>
 
         socket.on("message", function (data) {
-            // The active room's own listener (in chat.ejs) is what renders it into the chat pane —
-            // this one only cares about messages for rooms that *aren't* the one being viewed.
+            // The active room's own listener (in chat.ejs/dm.ejs) is what renders it into the chat
+            // pane — this one only cares about messages for threads that *aren't* the one being viewed.
             if (!data.room || data.room === activeRoomName) return;
             if (data.username === myUsername) return; // don't badge your own messages
             const row = document.querySelector('.room-row[data-room-name="' + data.room.toLowerCase() + '"]');
@@ -159,7 +248,6 @@
 
         const sidebar = document.getElementById('sidebar');
         const backdrop = document.getElementById('sidebar-backdrop');
-        const openBtn = document.getElementById('sidebar-open');
         const closeBtn = document.getElementById('sidebar-close');
 
         function openSidebar() {
@@ -170,7 +258,17 @@
             sidebar.classList.add('-translate-x-full');
             backdrop.classList.add('hidden');
         }
-        openBtn?.addEventListener('click', openSidebar);
+        // #sidebar-open lives in chat.ejs/dm.ejs/rooms.ejs's own markup, which this script tag
+        // renders *before* in the document — a direct getElementById here would always return
+        // null, since that button doesn't exist in the DOM yet at the moment this script runs.
+        // Delegating the listener to `document` sidesteps the ordering entirely: it only checks
+        // what was actually clicked, whenever the click happens, long after the whole page (and
+        // that button) exists.
+        document.addEventListener('click', function (event) {
+            if (event.target.closest('#sidebar-open')) {
+                openSidebar();
+            }
+        });
         closeBtn?.addEventListener('click', closeSidebar);
         backdrop.addEventListener('click', closeSidebar);
 
@@ -214,5 +312,80 @@
         <% if (typeof roomError !== 'undefined' && roomError) { %>
         openModal();
         <% } %>
+
+        // --- New Message modal: live username search ---
+        const newMessageModal = document.getElementById('new-message-modal');
+        const newMessageBtn = document.getElementById('new-message-btn');
+        const newMessageCancel = document.getElementById('new-message-cancel');
+        const userSearchInput = document.getElementById('user-search-input');
+        const userSearchResults = document.getElementById('user-search-results');
+
+        function openNewMessageModal() {
+            newMessageModal.classList.remove('hidden');
+            newMessageModal.classList.add('flex');
+            userSearchInput.value = '';
+            userSearchResults.innerHTML = '';
+            userSearchInput.focus();
+        }
+        function closeNewMessageModal() {
+            newMessageModal.classList.add('hidden');
+            newMessageModal.classList.remove('flex');
+        }
+        newMessageBtn.addEventListener('click', openNewMessageModal);
+        newMessageCancel.addEventListener('click', closeNewMessageModal);
+        newMessageModal.addEventListener('click', function (event) {
+            if (event.target === newMessageModal) closeNewMessageModal();
+        });
+
+        // Debounced so a fast typist doesn't fire a request on every keystroke — same 300ms
+        // pattern used elsewhere in this app for anything typing-triggered.
+        let searchDebounceTimer = null;
+        userSearchInput.addEventListener('input', function () {
+            clearTimeout(searchDebounceTimer);
+            const query = userSearchInput.value.trim();
+            if (!query) {
+                userSearchResults.innerHTML = '';
+                return;
+            }
+            searchDebounceTimer = setTimeout(async function () {
+                const response = await fetch('/dm/search?q=' + encodeURIComponent(query));
+                const usernames = await response.json();
+                userSearchResults.innerHTML = '';
+                if (usernames.length === 0) {
+                    const empty = document.createElement('p');
+                    empty.classList.add('text-xs', 'text-gray-400', 'dark:text-gray-500', 'text-center', 'py-2');
+                    empty.textContent = 'No users found.';
+                    userSearchResults.appendChild(empty);
+                    return;
+                }
+                usernames.forEach(function (name) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/dm/start';
+
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = 'username';
+                    hiddenInput.value = name;
+                    form.appendChild(hiddenInput);
+
+                    const button = document.createElement('button');
+                    button.type = 'submit';
+                    button.classList.add('w-full', 'text-left', 'flex', 'items-center', 'gap-2', 'px-3', 'py-2', 'rounded-lg', 'text-sm', 'text-gray-700', 'dark:text-gray-200', 'hover:bg-gray-100', 'dark:hover:bg-slate-700', 'transition-colors');
+
+                    const avatar = document.createElement('span');
+                    avatar.classList.add('w-6', 'h-6', 'rounded-full', 'bg-gray-100', 'dark:bg-slate-700', 'shrink-0', 'flex', 'items-center', 'justify-center', 'text-gray-400', 'text-xs', 'font-semibold');
+                    avatar.textContent = name.slice(0, 1).toUpperCase();
+                    button.appendChild(avatar);
+
+                    const label = document.createElement('span');
+                    label.textContent = name;
+                    button.appendChild(label);
+
+                    form.appendChild(button);
+                    userSearchResults.appendChild(form);
+                });
+            }, 300);
+        });
     })();
 </script>

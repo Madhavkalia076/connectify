@@ -73,13 +73,16 @@
                     <p class="text-xs text-gray-400 dark:text-gray-500">Nobody here right now.</p>
                 <% } %>
                 <% participants.forEach(function(p) { %>
-                    <div class="flex items-center gap-2 text-sm">
+                    <a href="/profile/<%= p.username %>" class="flex items-center gap-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 rounded-md px-1 py-0.5 -mx-1 transition-colors">
                         <span class="w-2 h-2 rounded-full shrink-0 <%= p.online ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600' %>"></span>
-                        <span class="truncate"><%= p.username %></span>
+                        <% if (p.profilePicture) { %>
+                            <img src="<%= p.profilePicture %>" alt="" class="w-5 h-5 rounded-full object-cover shrink-0">
+                        <% } %>
+                        <span class="truncate"><%= p.displayName || p.username %></span>
                         <% if (p.username === roomOwner) { %>
                             <span class="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">owner</span>
                         <% } %>
-                    </div>
+                    </a>
                 <% }) %>
             </div>
         </div>
