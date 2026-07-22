@@ -29,34 +29,21 @@ top of session-based authentication and persistent MongoDB storage.
 
 ## Tech stack
 
-| Layer | Choice |
-| --- | --- |
-| Server | Express |
-| Real-time | Socket.io |
-| Views | EJS (server-rendered) + Tailwind CSS |
-| Auth | express-session + connect-mongo |
-| Database | MongoDB Atlas (free M0 tier) |
-| File uploads | Multer (local disk) |
+| Layer         | Choice                                                                  |
+| ------------- | ----------------------------------------------------------------------- |
+| Server        | Express                                                                 |
+| Real-time     | Socket.io                                                               |
+| Views         | EJS (server-rendered) + Tailwind CSS                                    |
+| Auth          | express-session + connect-mongo                                         |
+| Database      | MongoDB Atlas (free M0 tier)                                            |
+| File uploads  | Multer (local disk)                                                     |
 | Video calling | WebRTC, with a free TURN relay (metered.ca) as a NAT-traversal fallback |
-| Testing | Jest + Supertest |
-| Deployment | Render (free tier) |
+| Testing       | Jest + Supertest                                                        |
+| Deployment    | Render (free tier)                                                      |
 
 Every service used here has a genuinely free tier with no credit card required — see
 [CLAUDE.md](./CLAUDE.md) for the full reasoning behind each choice, including alternatives that
 were considered and why they weren't picked.
-
-## Known limitations (stated honestly, not hidden)
-
-- **Render free tier sleeps** after 15 minutes idle — expect a slow first load after a gap.
-- **Uploaded images (`uploads/`) are local disk storage** and don't survive a redeploy on Render's
-  free tier (the filesystem resets). Fine for local dev/demo use; a production deployment would
-  need S3/Cloudinary instead.
-- **Presence, typing indicators, and the chat/auth rate limiters are all in-memory** — they reset
-  on server restart and wouldn't stay correct across multiple server instances without something
-  like Redis. Not an issue at this scale (a single free-tier instance).
-- **TURN credentials are fetched from an authenticated endpoint**, not truly secret — a logged-in
-  user inspecting network traffic could see them. Short-lived, per-call credentials would close
-  that gap but weren't built (more infrastructure than this project's scope needs).
 
 ## Running it locally
 
@@ -70,6 +57,7 @@ were considered and why they weren't picked.
    ```
    cp .env.example .env
    ```
+
    - `MONGODB_URI` — a free MongoDB Atlas cluster's connection string.
    - `SESSION_SECRET` — any random string.
    - `TURN_USERNAME` / `TURN_CREDENTIAL` — free from [metered.ca](https://www.metered.ca) (only
@@ -95,9 +83,3 @@ npm test
 Runs the Jest + Supertest suite against the real MongoDB Atlas database configured in `.env`
 (same connection the dev server uses) — see [CLAUDE.md](./CLAUDE.md) for why that choice was made
 over an in-memory test database.
-
-## Project docs
-
-[CLAUDE.md](./CLAUDE.md) is the full build log for this project — the reasoning behind every
-major decision, alternatives considered, tradeoffs, and known limitations, written up phase by
-phase as the project was built.

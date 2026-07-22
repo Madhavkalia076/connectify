@@ -638,6 +638,46 @@ in the test suite without that guard?
 - Deploy to Render or Railway free tier. Environment variables set via the host's dashboard, not
   committed. Live link goes in the README.
 
+**What was actually built:**
+
+- **Deployed to Render's free "Hobby" web service tier**, live at
+  `https://connectify-kola.onrender.com`. Build command:
+  `npm install && npx tailwindcss -i ./public/css/tailwind.css -o ./public/css/style.css` — the
+  Tailwind rebuild step is necessary because Render runs the build command once per deploy rather
+  than the continuous `--watch` used in local dev, so without it the deployed CSS could silently
+  drift out of sync with whatever's actually committed. Start command: `npm start` (the
+  `"start": "node app.js"` script added in the testing work, since `app.js` now guards
+  `server.listen()` behind a `require.main === module` check).
+- **Connected via "Public Git Repository" (a pasted GitHub URL), not the GitHub App integration**
+  — the OAuth-based GitHub connection flow didn't complete successfully on first attempt, so the
+  simpler URL-based method was used instead, which works fine since the repo is public. The real
+  tradeoff, worth remembering: this method doesn't install a webhook, so Render won't auto-deploy
+  on every `git push` the way the GitHub-connected method would. Future deploys need a manual
+  "Manual Deploy → Deploy latest commit" click in Render's dashboard. Reconnecting via GitHub
+  properly later (to restore auto-deploy) remains an option without needing to recreate the
+  service.
+- **MongoDB Atlas Network Access opened to `0.0.0.0/0`** ("allow access from anywhere") — Render's
+  free tier doesn't provide a fixed outbound IP to whitelist individually, so the connection is
+  secured by the username/password in `MONGODB_URI` alone rather than by IP restriction. This is
+  the standard, expected approach for this exact situation, not a security shortcut.
+- **Environment variables set directly in Render's dashboard** (`MONGODB_URI`, `SESSION_SECRET`,
+  `TURN_USERNAME`, `TURN_CREDENTIAL`) — never committed. `PORT` deliberately left unset, since
+  Render assigns it automatically and `app.js` already reads `process.env.PORT`.
+- **Verified end-to-end against the live deployment**, not just "it loaded": a real signup, a
+  session cookie surviving to a protected route, and a login, all executed via curl against
+  `https://connectify-kola.onrender.com`, confirming the deployed instance can actually reach
+  MongoDB Atlas and not just serve static pages.
+- **`README.md` written** (Phase 0 called for this early on, but it was never actually created —
+  filled in now that there's a real live link to put in it) — feature list, tech stack table, the
+  same honestly-stated known limitations from this document (Render free-tier sleep/cold-start,
+  ephemeral `uploads/` storage, in-memory presence/rate-limiting, TURN credential exposure), and
+  local setup/testing instructions.
+
+**Learning checkpoint:** why does Render need its own separate Tailwind build step instead of just
+using whatever's already committed in `public/css/style.css`? Also: what's the actual functional
+difference between connecting a repo via GitHub's App integration versus pasting a public repo
+URL — what does the GitHub-connected method get you that this one doesn't?
+
 ---
 
 ## Phase 3 — AI layer (scaffolded separately, integrate after Phase 1 & 2 are solid)
