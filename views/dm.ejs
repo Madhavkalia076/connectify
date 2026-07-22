@@ -318,7 +318,15 @@
         const myUsername = "<%= username %>";
         const partnerUsername = "<%= partnerUsername %>";
 
-        socket.emit("joinroom", { roomId: room });
+        // Bound to "connect" rather than emitted once — see chat.ejs's identical comment on this
+        // same pattern. Socket.io reconnects silently after any network drop, and without rejoining
+        // on every reconnect (not just the first), this DM would stop receiving live messages until
+        // the page was manually reloaded.
+        function joinActiveRoom() {
+            socket.emit("joinroom", { roomId: room });
+        }
+        if (socket.connected) joinActiveRoom();
+        socket.on("connect", joinActiveRoom);
 
         socket.on("message", function (data) {
             if (data.room !== room) return;
@@ -524,9 +532,16 @@
         let inCall = false;
         let isCalling = false; // true while waiting for the other side to accept/reject/ignore
 
-        const rtcSettings = {
+        // See chat.ejs's identical comment on this same pattern — TURN credentials are fetched from
+        // an authenticated endpoint (routes/webrtcroute.js) instead of being embedded in this
+        // page's rendered HTML, so they're not readable via plain "View Page Source" anymore.
+        let rtcSettings = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
         };
+        const iceServersReady = fetch("/webrtc/ice-servers")
+            .then((res) => res.json())
+            .then((data) => { rtcSettings = { iceServers: data.iceServers }; })
+            .catch((err) => console.error("Failed to load TURN/STUN config, falling back to STUN only:", err));
 
         // --- Ringtone ---
         // Same synthesized approach as chat.ejs — see that file's comment for why this doesn't
@@ -605,7 +620,8 @@
             }
         }
 
-        const createPeerConnection = () => {
+        const createPeerConnection = async () => {
+            await iceServersReady;
             peerConnection = new RTCPeerConnection(rtcSettings);
 
             remoteStream = new MediaStream();

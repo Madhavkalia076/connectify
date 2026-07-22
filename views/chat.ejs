@@ -371,7 +371,16 @@
 
         // The only join that marks presence (the "Online: ..." bar, the Room Info participant
         // list) — the sidebar's "watchRoom" joins for every other room deliberately skip that.
-        socket.emit("joinroom", { roomId: room });
+        //
+        // Bound to "connect" (same reasoning as watchAllRooms in partials/sidebar.ejs) rather than
+        // emitted once here: Socket.io reconnects automatically after any network drop, but the
+        // server has no memory of a fresh connection's prior room membership — without rejoining on
+        // every reconnect, messages would silently stop arriving live until the page was reloaded.
+        function joinActiveRoom() {
+            socket.emit("joinroom", { roomId: room });
+        }
+        if (socket.connected) joinActiveRoom();
+        socket.on("connect", joinActiveRoom);
 
         socket.on("message", function (data) {
             if (data.room !== room) return; // a background room's message — the sidebar handles badging it
@@ -607,9 +616,25 @@
         let inCall = false;
         let isCalling = false; // true while waiting for the other side to accept/reject/ignore
 
-        const rtcSettings = {
+        // Fallback used only if the /webrtc/ice-servers fetch below fails for some reason (e.g. a
+        // network blip right as a call starts) — a call can still attempt a direct connection via
+        // STUN even without TURN, it just won't have a relay fallback available that one time.
+        let rtcSettings = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
         };
+
+        // TURN credentials used to be embedded directly in this page's rendered HTML — anyone
+        // logged in could read them straight from "View Page Source." Fetching them from an
+        // authenticated endpoint instead (routes/webrtcroute.js, which reads them from
+        // process.env — never hardcoded or committed) doesn't make them secret, since a determined
+        // person can still see the response in devtools' Network tab, but it raises the bar and
+        // means they're never sent down until a call is actually about to start. Fetched once
+        // and cached in `rtcSettings` for the rest of this page's lifetime — a video call doesn't
+        // start often enough for a fresh fetch per call to matter.
+        const iceServersReady = fetch("/webrtc/ice-servers")
+            .then((res) => res.json())
+            .then((data) => { rtcSettings = { iceServers: data.iceServers }; })
+            .catch((err) => console.error("Failed to load TURN/STUN config, falling back to STUN only:", err));
 
         // --- Ringtone ---
         // Synthesized with the Web Audio API instead of an audio file — no asset to source, host,
@@ -691,7 +716,11 @@
             }
         }
 
-        const createPeerConnection = () => {
+        const createPeerConnection = async () => {
+            // Make sure the TURN/STUN fetch above has actually resolved before building the
+            // connection — without this, a call started right as the page loads could race ahead
+            // using the STUN-only fallback even though the real config was only a moment away.
+            await iceServersReady;
             peerConnection = new RTCPeerConnection(rtcSettings);
 
             remoteStream = new MediaStream();

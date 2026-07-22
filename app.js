@@ -23,6 +23,7 @@ const chatRouter=require('./routes/chatroute')
 const messageRouter=require('./routes/messageroute')
 const dmRouter=require('./routes/dmroute')
 const profileRouter=require('./routes/profileroute')
+const webrtcRouter=require('./routes/webrtcroute')
 const mongoose=require('mongoose');
 const session=require('express-session');
 const { MongoStore }=require('connect-mongo');
@@ -65,6 +66,11 @@ const sessionStore = MongoStore.create({ mongoUrl: process.env.MONGODB_URI });
 sessionStore.clientP.catch((err) => {
   console.error("Session store MongoDB error:", err.message);
 });
+// Exposed the same way as `io`/`getOnlineUsers` above — lets the test suite close this store's
+// own MongoDB connection during teardown (it's independent of mongoose.connection, so closing one
+// doesn't close the other; without also closing this, Jest hangs after the tests finish instead
+// of exiting cleanly).
+app.set('sessionStore', sessionStore);
 
 // The session middleware itself — one instance, shared between Express (HTTP) and Socket.io
 // (WebSocket) below, so a logged-in user's identity is visible in both worlds.
@@ -133,6 +139,30 @@ async function canAccessRoom(roomId, username) {
   return true;
 }
 
+// express-rate-limit (used in routes/authroute.js) only wraps Express HTTP middleware — it has no
+// idea Socket.io events exist, so it can't touch the "message" event below. This is a small
+// hand-rolled equivalent: per-username, a sliding window of timestamps kept in memory. Same
+// limitation as the presence Map elsewhere in this file — resets on server restart, and wouldn't
+// be shared correctly across multiple server instances without something like Redis.
+const messageTimestamps = new Map(); // username -> array of Date.now() timestamps of recent messages
+const MESSAGE_RATE_LIMIT = 10; // max messages...
+const MESSAGE_RATE_WINDOW_MS = 10 * 1000; // ...per this many milliseconds
+
+function isRateLimited(username) {
+  const now = Date.now();
+  const timestamps = (messageTimestamps.get(username) || [])
+    .filter((t) => now - t < MESSAGE_RATE_WINDOW_MS);
+
+  if (timestamps.length >= MESSAGE_RATE_LIMIT) {
+    messageTimestamps.set(username, timestamps); // keep the pruned array either way
+    return true;
+  }
+
+  timestamps.push(now);
+  messageTimestamps.set(username, timestamps);
+  return false;
+}
+
 // Lets HTTP routes (chatroute.js's participants list) read live presence data without needing
 // their own reference to the roomPresence Map, which only exists in this module's scope.
 app.set('getOnlineUsers', function (roomId) {
@@ -198,6 +228,15 @@ io.on("connection",function(socket){
   })
 
   socket.on("message",async function(data){
+    // Silently drop rather than emit an error event back — a legitimate user never hits this in
+    // normal use (10 messages/10s is way above normal typing speed), so the only realistic sender
+    // is a script/bug, which doesn't need a friendly explanation.
+    if(isRateLimited(username)) return;
+
+    // Belt-and-suspenders with the schema's maxlength: this check runs *before* touching the
+    // database at all, so an oversized payload never even reaches Mongoose/Mongo.
+    if(typeof data.text !== 'string' || data.text.length === 0 || data.text.length > 2000) return;
+
     // Save first, then broadcast — this way the message only ever shows up on someone's screen
     // if it's already durably stored. If the DB write fails, nobody sees a message that would've
     // vanished on refresh anyway.
@@ -253,5 +292,28 @@ app.use('/',chatRouter);
 app.use('/',messageRouter);
 app.use('/',dmRouter);
 app.use('/',profileRouter);
+app.use('/',webrtcRouter);
 
-server.listen(process.env.PORT || 3000);
+// Reached only if no route above matched anything — turns "no matching route" into the same
+// err.status/err.message shape the error handler below already understands, instead of Express's
+// own generic "Cannot GET /whatever" plain-text response.
+app.use(function notFound(req, res, next) {
+  const err = new Error('Page not found.');
+  err.status = 404;
+  next(err);
+});
+
+// Must be registered last — Express only treats a 4-argument function as error-handling
+// middleware, and only routes/middleware registered *before* a next(err) call are candidates to
+// have already run, so this has to sit at the very end of the chain to catch everything above it.
+app.use(require('./middleware/errorHandler'));
+
+// `require.main === module` is true only when this file was run directly (`node app.js`), not
+// when something else `require()`s it. Tests import `app` via `require('./app')` to hand it to
+// Supertest, which starts its own ephemeral listener per test file — actually binding to a real
+// port here too would fight over port 3000 with whatever dev server is already running.
+if (require.main === module) {
+  server.listen(process.env.PORT || 3000);
+}
+
+module.exports = app;

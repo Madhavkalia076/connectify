@@ -219,18 +219,33 @@
         // receives live "message" events for all of them, which is what makes sidebar unread badges
         // update without needing a page reload. The server re-checks membership per room regardless
         // of what's rendered here, so this can't grant access beyond what's actually allowed.
-        <% rooms.forEach(function(r) { %>
-        <% if (r.name !== activeId) { %>
-        socket.emit("watchRoom", { roomId: <%- JSON.stringify(r.name) %> });
-        <% } %>
-        <% }) %>
-        <% conversations.forEach(function(conv) { %>
-        <% var sortedParticipants = conv.participants.slice().sort(); %>
-        <% var convRoomId = 'dm:' + sortedParticipants[0] + ':' + sortedParticipants[1]; %>
-        <% if (convRoomId !== activeId) { %>
-        socket.emit("watchRoom", { roomId: <%- JSON.stringify(convRoomId) %> });
-        <% } %>
-        <% }) %>
+        //
+        // Wrapped in a function bound to "connect" (not just run once at the top of this script)
+        // because Socket.io silently reconnects on its own after any network drop — a phone locking
+        // its screen, switching between WiFi and cellular, a laptop waking from sleep, even a brief
+        // signal hiccup. The socket looks "connected" again afterward, but the server has no memory
+        // of which rooms it was in before — a fresh connection starts in zero rooms. Without
+        // re-running these emits on every reconnect (not just the first one), the page would sit
+        // there silently receiving nothing until a manual reload re-ran this script from scratch.
+        // "connect" fires for the first connection too, so this covers both cases with one listener.
+        function watchAllRooms() {
+            <% rooms.forEach(function(r) { %>
+            <% if (r.name !== activeId) { %>
+            socket.emit("watchRoom", { roomId: <%- JSON.stringify(r.name) %> });
+            <% } %>
+            <% }) %>
+            <% conversations.forEach(function(conv) { %>
+            <% var sortedParticipants = conv.participants.slice().sort(); %>
+            <% var convRoomId = 'dm:' + sortedParticipants[0] + ':' + sortedParticipants[1]; %>
+            <% if (convRoomId !== activeId) { %>
+            socket.emit("watchRoom", { roomId: <%- JSON.stringify(convRoomId) %> });
+            <% } %>
+            <% }) %>
+        }
+        // Covers the (rare, but possible) case where this socket is already connected by the time
+        // this script runs, in addition to the normal case of waiting for "connect" to fire.
+        if (socket.connected) watchAllRooms();
+        socket.on("connect", watchAllRooms);
 
         socket.on("message", function (data) {
             // The active room's own listener (in chat.ejs/dm.ejs) is what renders it into the chat
@@ -349,16 +364,18 @@
             }
             searchDebounceTimer = setTimeout(async function () {
                 const response = await fetch('/dm/search?q=' + encodeURIComponent(query));
-                const usernames = await response.json();
+                const results = await response.json();
                 userSearchResults.innerHTML = '';
-                if (usernames.length === 0) {
+                if (results.length === 0) {
                     const empty = document.createElement('p');
                     empty.classList.add('text-xs', 'text-gray-400', 'dark:text-gray-500', 'text-center', 'py-2');
                     empty.textContent = 'No users found.';
                     userSearchResults.appendChild(empty);
                     return;
                 }
-                usernames.forEach(function (name) {
+                results.forEach(function (result) {
+                    const label = result.displayName || result.username;
+
                     const form = document.createElement('form');
                     form.method = 'POST';
                     form.action = '/dm/start';
@@ -366,22 +383,45 @@
                     const hiddenInput = document.createElement('input');
                     hiddenInput.type = 'hidden';
                     hiddenInput.name = 'username';
-                    hiddenInput.value = name;
+                    hiddenInput.value = result.username;
                     form.appendChild(hiddenInput);
 
                     const button = document.createElement('button');
                     button.type = 'submit';
                     button.classList.add('w-full', 'text-left', 'flex', 'items-center', 'gap-2', 'px-3', 'py-2', 'rounded-lg', 'text-sm', 'text-gray-700', 'dark:text-gray-200', 'hover:bg-gray-100', 'dark:hover:bg-slate-700', 'transition-colors');
 
-                    const avatar = document.createElement('span');
-                    avatar.classList.add('w-6', 'h-6', 'rounded-full', 'bg-gray-100', 'dark:bg-slate-700', 'shrink-0', 'flex', 'items-center', 'justify-center', 'text-gray-400', 'text-xs', 'font-semibold');
-                    avatar.textContent = name.slice(0, 1).toUpperCase();
-                    button.appendChild(avatar);
+                    if (result.profilePicture) {
+                        const img = document.createElement('img');
+                        img.src = result.profilePicture;
+                        img.alt = '';
+                        img.classList.add('w-6', 'h-6', 'rounded-full', 'object-cover', 'shrink-0');
+                        button.appendChild(img);
+                    } else {
+                        const avatar = document.createElement('span');
+                        avatar.classList.add('w-6', 'h-6', 'rounded-full', 'bg-gray-100', 'dark:bg-slate-700', 'shrink-0', 'flex', 'items-center', 'justify-center', 'text-gray-400', 'text-xs', 'font-semibold');
+                        avatar.textContent = label.slice(0, 1).toUpperCase();
+                        button.appendChild(avatar);
+                    }
 
-                    const label = document.createElement('span');
-                    label.textContent = name;
-                    button.appendChild(label);
+                    // Showing both — the display name (what they're actually known as) and the
+                    // @username (unambiguous, in case two people share a display name) — mirrors
+                    // how the profile page itself presents identity.
+                    const textWrap = document.createElement('span');
+                    textWrap.classList.add('min-w-0', 'flex', 'flex-col');
 
+                    const nameEl = document.createElement('span');
+                    nameEl.classList.add('truncate');
+                    nameEl.textContent = label;
+                    textWrap.appendChild(nameEl);
+
+                    if (result.displayName) {
+                        const handleEl = document.createElement('span');
+                        handleEl.classList.add('text-xs', 'text-gray-400', 'dark:text-gray-500', 'truncate');
+                        handleEl.textContent = '@' + result.username;
+                        textWrap.appendChild(handleEl);
+                    }
+
+                    button.appendChild(textWrap);
                     form.appendChild(button);
                     userSearchResults.appendChild(form);
                 });

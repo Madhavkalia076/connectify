@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const requireAuth = require('../middleware/requireAuth');
 const Message = require('../models/Message');
+const catchAsync = require('../middleware/catchAsync');
 
-router.post('/messages/:messageId/delete-for-me', requireAuth, async (req, res) => {
+router.post('/messages/:messageId/delete-for-me', requireAuth, catchAsync(async (req, res) => {
   const message = await Message.findById(req.params.messageId).catch(() => null);
   if (!message) {
     return res.status(404).json({ error: 'Message not found.' });
@@ -18,9 +19,9 @@ router.post('/messages/:messageId/delete-for-me', requireAuth, async (req, res) 
   }
 
   res.json({ ok: true });
-});
+}));
 
-router.post('/messages/:messageId/delete-for-everyone', requireAuth, async (req, res) => {
+router.post('/messages/:messageId/delete-for-everyone', requireAuth, catchAsync(async (req, res) => {
   const message = await Message.findById(req.params.messageId).catch(() => null);
   if (!message) {
     return res.status(404).json({ error: 'Message not found.' });
@@ -41,6 +42,6 @@ router.post('/messages/:messageId/delete-for-everyone', requireAuth, async (req,
   req.app.get('io').to(message.roomId).emit('messageDeleted', { id: message._id.toString() });
 
   res.json({ ok: true });
-});
+}));
 
 module.exports = router;

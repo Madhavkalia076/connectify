@@ -20,6 +20,7 @@ const messageSchema = new mongoose.Schema({
     // Mongoose supports a conditional required function for exactly this case.
     required: function () { return this.type === 'text'; },
     default: '',
+    maxlength: 2000, // without this, nothing stops a client from sending a multi-megabyte "message"
   },
   fileUrl: {
     type: String, // set only when type === 'image' — the /uploads/<filename> path to fetch it from

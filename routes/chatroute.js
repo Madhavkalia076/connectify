@@ -7,17 +7,18 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const upload = require('../lib/upload');
 const { getSidebarData } = require('../lib/sidebarData');
+const catchAsync = require('../middleware/catchAsync');
 
 // Only letters, numbers, hyphens, underscores — keeps room names safe to put straight into a URL
 // without needing to think about encoding, and stops someone naming a room "../../etc".
 const ROOM_NAME_PATTERN = /^[a-zA-Z0-9_-]{2,30}$/;
 
-router.get('/chat', requireAuth, requireProfile, async (req, res) => {
+router.get('/chat', requireAuth, requireProfile, catchAsync(async (req, res) => {
   const { rooms, conversations, unreadCounts, dmPartnerProfiles, myDisplayName, myProfilePicture } = await getSidebarData(req.session.username);
   res.render('rooms', { rooms, conversations, dmPartnerProfiles, myDisplayName, myProfilePicture, roomError: null, username: req.session.username, unreadCounts });
-});
+}));
 
-router.post('/chat/rooms', requireAuth, async (req, res) => {
+router.post('/chat/rooms', requireAuth, catchAsync(async (req, res) => {
   const name = (req.body.name || '').trim();
   // Checkbox inputs only appear in req.body at all when checked — unchecked means the field is
   // simply absent, not present-and-false. Coercing with !! handles both cases explicitly.
@@ -45,9 +46,9 @@ router.post('/chat/rooms', requireAuth, async (req, res) => {
   }
 
   res.redirect(`/chat/${name}`);
-});
+}));
 
-router.get('/chat/:roomId', requireAuth, requireProfile, async (req, res) => {
+router.get('/chat/:roomId', requireAuth, requireProfile, catchAsync(async (req, res) => {
   const room = await Room.findOne({ name: req.params.roomId });
   if (!room) {
     return res.redirect('/chat');
@@ -135,9 +136,9 @@ router.get('/chat/:roomId', requireAuth, requireProfile, async (req, res) => {
     activeRoom: room.name,
     unreadCounts,
   });
-});
+}));
 
-router.post('/chat/:roomId/request', requireAuth, async (req, res) => {
+router.post('/chat/:roomId/request', requireAuth, catchAsync(async (req, res) => {
   const room = await Room.findOne({ name: req.params.roomId });
   if (!room) {
     return res.redirect('/chat');
@@ -153,9 +154,9 @@ router.post('/chat/:roomId/request', requireAuth, async (req, res) => {
   }
 
   res.redirect(`/chat/${room.name}`);
-});
+}));
 
-router.post('/chat/:roomId/approve', requireAuth, async (req, res) => {
+router.post('/chat/:roomId/approve', requireAuth, catchAsync(async (req, res) => {
   const room = await Room.findOne({ name: req.params.roomId });
   if (!room) {
     return res.redirect('/chat');
@@ -175,9 +176,9 @@ router.post('/chat/:roomId/approve', requireAuth, async (req, res) => {
   await room.save();
 
   res.redirect(`/chat/${room.name}`);
-});
+}));
 
-router.post('/chat/:roomId/reject', requireAuth, async (req, res) => {
+router.post('/chat/:roomId/reject', requireAuth, catchAsync(async (req, res) => {
   const room = await Room.findOne({ name: req.params.roomId });
   if (!room) {
     return res.redirect('/chat');
@@ -192,9 +193,9 @@ router.post('/chat/:roomId/reject', requireAuth, async (req, res) => {
   await room.save();
 
   res.redirect(`/chat/${room.name}`);
-});
+}));
 
-router.post('/chat/:roomId/leave', requireAuth, async (req, res) => {
+router.post('/chat/:roomId/leave', requireAuth, catchAsync(async (req, res) => {
   const room = await Room.findOne({ name: req.params.roomId });
   if (!room) {
     return res.redirect('/chat');
@@ -211,82 +212,93 @@ router.post('/chat/:roomId/leave', requireAuth, async (req, res) => {
   }
 
   res.redirect('/chat');
-});
+}));
 
-router.post('/chat/:roomId/settings', requireAuth, function (req, res) {
+router.post('/chat/:roomId/settings', requireAuth, function (req, res, next) {
+  // Wrapping upload.single() in a plain function (instead of passing it directly as middleware)
+  // lets us catch its errors ourselves — multer reports "file too big" / "wrong file type" via an
+  // error passed to this callback, not through Express's normal middleware chain. The inner
+  // async logic is wrapped in its own try/catch (rather than using catchAsync, which only works
+  // on a handler Express itself calls with (req, res, next)) so that any error there — including
+  // one thrown by Mongoose validation on .save() — reaches next(err) and lands on the centralized
+  // error handler instead of crashing silently.
   upload.single('image')(req, res, async function (err) {
     if (err) {
       return res.status(400).send(err.message);
     }
 
-    const room = await Room.findOne({ name: req.params.roomId });
-    if (!room) {
-      return res.redirect('/chat');
-    }
+    try {
+      const room = await Room.findOne({ name: req.params.roomId });
+      if (!room) {
+        return res.redirect('/chat');
+      }
 
-    // Same authorization pattern as everything else owner-only: authentication (requireAuth)
-    // only proves someone is logged in, this proves they're allowed to change *this* room.
-    if (room.createdBy !== req.session.username) {
-      return res.status(403).send('Only the room owner can change room settings.');
-    }
+      // Same authorization pattern as everything else owner-only: authentication (requireAuth)
+      // only proves someone is logged in, this proves they're allowed to change *this* room.
+      if (room.createdBy !== req.session.username) {
+        return res.status(403).send('Only the room owner can change room settings.');
+      }
 
-    if (typeof req.body.description === 'string') {
-      room.description = req.body.description.trim().slice(0, 200);
-    }
-    if (req.file) {
-      room.imageUrl = `/uploads/${req.file.filename}`;
-    }
-    await room.save();
+      if (typeof req.body.description === 'string') {
+        room.description = req.body.description.trim().slice(0, 200);
+      }
+      if (req.file) {
+        room.imageUrl = `/uploads/${req.file.filename}`;
+      }
+      await room.save();
 
-    // Known limitation, scoped out deliberately: this doesn't broadcast live to anyone else
-    // currently viewing the room — they'll see the updated description/image next time they
-    // load the page, not instantly. Real-time room-metadata sync would need its own socket event,
-    // and wasn't worth the added complexity alongside everything else in this pass.
-    res.redirect(`/chat/${room.name}`);
+      // Known limitation, scoped out deliberately: this doesn't broadcast live to anyone else
+      // currently viewing the room — they'll see the updated description/image next time they
+      // load the page, not instantly. Real-time room-metadata sync would need its own socket event,
+      // and wasn't worth the added complexity alongside everything else in this pass.
+      res.redirect(`/chat/${room.name}`);
+    } catch (err2) {
+      next(err2);
+    }
   });
 });
 
-router.post('/chat/:roomId/upload', requireAuth, function (req, res) {
-  // Wrapping upload.single() in a plain function (instead of passing it directly as middleware)
-  // lets us catch its errors ourselves — multer reports "file too big" / "wrong file type" via an
-  // error passed to this callback, not a normal Express error-handling middleware chain, since
-  // there isn't a centralized error handler wired up yet (that's a later phase).
+router.post('/chat/:roomId/upload', requireAuth, function (req, res, next) {
   upload.single('image')(req, res, async function (err) {
     if (err) {
       return res.status(400).json({ error: err.message });
     }
 
-    const room = await Room.findOne({ name: req.params.roomId });
-    if (!room) {
-      return res.status(404).json({ error: 'Room not found.' });
+    try {
+      const room = await Room.findOne({ name: req.params.roomId });
+      if (!room) {
+        return res.status(404).json({ error: 'Room not found.' });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: 'No image was uploaded.' });
+      }
+
+      const fileUrl = `/uploads/${req.file.filename}`;
+      const saved = await Message.create({
+        username: req.session.username,
+        roomId: room.name,
+        type: 'image',
+        fileUrl,
+      });
+
+      // Same "save first, then broadcast live" pattern as text messages — everyone in the room,
+      // sender included, gets it from the same socket event the chat page already listens to.
+      req.app.get('io').to(room.name).emit('message', {
+        id: saved._id.toString(),
+        username: saved.username,
+        type: 'image',
+        fileUrl: saved.fileUrl,
+        room: room.name,
+      });
+
+      res.json({ ok: true });
+    } catch (err2) {
+      next(err2);
     }
-    if (!req.file) {
-      return res.status(400).json({ error: 'No image was uploaded.' });
-    }
-
-    const fileUrl = `/uploads/${req.file.filename}`;
-    const saved = await Message.create({
-      username: req.session.username,
-      roomId: room.name,
-      type: 'image',
-      fileUrl,
-    });
-
-    // Same "save first, then broadcast live" pattern as text messages — everyone in the room,
-    // sender included, gets it from the same socket event the chat page already listens to.
-    req.app.get('io').to(room.name).emit('message', {
-      id: saved._id.toString(),
-      username: saved.username,
-      type: 'image',
-      fileUrl: saved.fileUrl,
-      room: room.name,
-    });
-
-    res.json({ ok: true });
   });
 });
 
-router.post('/chat/:roomId/delete', requireAuth, async (req, res) => {
+router.post('/chat/:roomId/delete', requireAuth, catchAsync(async (req, res) => {
   const room = await Room.findOne({ name: req.params.roomId });
   if (!room) {
     return res.redirect('/chat');
@@ -308,6 +320,6 @@ router.post('/chat/:roomId/delete', requireAuth, async (req, res) => {
   await Room.deleteOne({ _id: room._id });
 
   res.redirect('/chat');
-});
+}));
 
 module.exports = router;
