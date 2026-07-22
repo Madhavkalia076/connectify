@@ -41,9 +41,7 @@ top of session-based authentication and persistent MongoDB storage.
 | Testing       | Jest + Supertest                                                        |
 | Deployment    | Render (free tier)                                                      |
 
-Every service used here has a genuinely free tier with no credit card required — see
-[CLAUDE.md](./CLAUDE.md) for the full reasoning behind each choice, including alternatives that
-were considered and why they weren't picked.
+Every service used here has a genuinely free tier with no credit card required.
 
 ## Running it locally
 
@@ -54,6 +52,7 @@ were considered and why they weren't picked.
    npm install
    ```
 2. Copy `.env.example` to `.env` and fill in real values:
+
    ```
    cp .env.example .env
    ```
@@ -63,6 +62,7 @@ were considered and why they weren't picked.
    - `TURN_USERNAME` / `TURN_CREDENTIAL` — free from [metered.ca](https://www.metered.ca) (only
      needed for video calls to work reliably across different networks; the app still runs
      without them, calls just won't have a TURN fallback).
+
 3. Build the CSS once (or leave it running in the background while you work):
    ```
    npm run build:css
@@ -81,5 +81,4 @@ npm test
 ```
 
 Runs the Jest + Supertest suite against the real MongoDB Atlas database configured in `.env`
-(same connection the dev server uses) — see [CLAUDE.md](./CLAUDE.md) for why that choice was made
-over an in-memory test database.
+(same connection the dev server uses).
